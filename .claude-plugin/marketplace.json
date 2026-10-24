@@ -1,0 +1,13 @@
+{
+  "name": "aikya-mods",
+  "owner": { "name": "Aikya" },
+  "metadata": { "description": "Independent Claude Code mods for Aikya." },
+  "plugins": [
+    {
+      "name": "aikya-boxbot",
+      "source": "./mods/aikya-boxbot",
+      "description": "Decorative boxes moving along a conveyor belt, without on-screen controls.",
+      "version": "0.2.0"
+    }
+  ]
+}
