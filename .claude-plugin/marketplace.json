@@ -1,13 +1,29 @@
 {
   "name": "aikya-mods",
-  "owner": { "name": "Aikya" },
-  "metadata": { "description": "Independent Claude Code mods for Aikya." },
+  "owner": {
+    "name": "Aikya"
+  },
+  "metadata": {
+    "description": "Independent Claude Code mods for Aikya."
+  },
   "plugins": [
     {
       "name": "aikya-boxbot",
       "source": "./mods/aikya-boxbot",
       "description": "Decorative boxes moving along a conveyor belt, without on-screen controls.",
-      "version": "0.2.0"
+      "version": "0.3.0"
+    },
+    {
+      "name": "aikya-flow",
+      "source": "./mods/aikya-flow",
+      "description": "Command activity and evidence-backed workflow states in a native pane.",
+      "version": "0.1.0"
+    },
+    {
+      "name": "aikya-usage",
+      "source": "./mods/aikya-usage",
+      "description": "Context, observed tokens and account usage in one compact footer.",
+      "version": "0.1.0"
     }
   ]
 }

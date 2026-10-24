@@ -3,7 +3,7 @@
 set -e -o pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-available=(aikya-boxbot)
+available=(aikya-boxbot aikya-flow aikya-usage)
 selected=()
 requested=()
 scope=user

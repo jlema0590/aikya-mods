@@ -105,3 +105,34 @@ test('a narrow pane keeps the conveyor artwork within its actual body width', as
   expect(source.split('\n').every(line => line.length <= 20)).toBe(true)
   await ui.unmount()
 })
+
+for (const tier of ['prepend', 'append'] as const) {
+  test('BoxBot composes below the Flow pane and stops when it closes (' + tier + ')', {
+    plugins: [{ name: 'flow-site', tier, register(on) {
+      on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+        if (e.requestId !== 'aikya-flow') return next(e)
+        const { Box, Text } = $.ui.resolve(e)
+        return Box({ children: [Text({ children: ['AIKYA FLOW'] }), await next(e)] })
+      })
+      on('command.run', { command: 'close-flow' }, async ($) => { await $.ui.close({ id: 'aikya-flow' }); return {} })
+    } }],
+  }, async ($, on) => {
+    engineStubs(on)
+    const clock = mock.clock(on)
+    const ui = await $.ui.mount({ ...pane, requestId: 'aikya-flow', surface: 'terminal' })
+    const initial = JSON.stringify(await ui.drawn())
+    expect(initial).toMatch('AIKYA BOXBOT')
+    expect(initial.indexOf('AIKYA FLOW') < initial.indexOf('AIKYA BOXBOT')).toBe(true)
+    await clock.advance(1000)
+    expect(JSON.stringify(await ui.drawn())).not.toBe(initial)
+    await $.command.run({ command: 'aikya-boxbot', args: 'hide' })
+    expect(JSON.stringify(await ui.drawn())).not.toMatch('AIKYA BOXBOT')
+    await $.command.run({ command: 'aikya-boxbot', args: 'show' })
+    expect(JSON.stringify(await ui.drawn())).toMatch('AIKYA BOXBOT')
+    await $.command.run({ command: 'close-flow', args: '' })
+    const closed = JSON.stringify(await ui.drawn())
+    await clock.advance(3000)
+    expect(JSON.stringify(await ui.drawn())).toBe(closed)
+    await ui.unmount()
+  })
+}

@@ -1,6 +1,8 @@
 {
   "name": "aikya-boxbot",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Boxes moving along a conveyor belt in an optional Claude Code pane.",
-  "author": { "name": "Aikya" }
+  "author": {
+    "name": "Aikya"
+  }
 }

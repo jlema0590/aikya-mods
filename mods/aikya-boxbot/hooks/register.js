@@ -19,7 +19,7 @@ function sync($, state) {
 }
 
 export function register(on) {
-  const state = { frame: 0, visible: false, paused: false, still: false, timer: null };
+  const state = { frame: 0, visible: false, paused: false, still: false, timer: null, shared: false, hidden: false };
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -34,9 +34,11 @@ export function register(on) {
   on('command.run', { command: 'aikya-boxbot' }, async ($, e) => {
     const action = e.args.trim() || 'show';
     if (action === 'hide') {
+      state.hidden = true;
       state.visible = false;
       stop(state);
       await $.ui.close({ id: PANE });
+      $.ui.invalidate('ui.render');
       return {};
     }
     if (!['show', 'pause', 'resume', 'still', 'motion'].includes(action)) {
@@ -46,6 +48,8 @@ export function register(on) {
     if (action === 'resume') state.paused = false;
     if (action === 'still') { state.still = true; state.frame = 20; }
     if (action === 'motion') state.still = false;
+    state.hidden = false;
+    if (state.shared) { state.visible = true; sync($, state); return {}; }
     const placement = await $.ui.open({ id: PANE, title: 'Aikya BoxBot', focus: true, closeOnEscape: true });
     state.visible = placement.isPlaced;
     sync($, state);
@@ -53,8 +57,12 @@ export function register(on) {
   });
 
   on('ui.close', { id: PANE }, async ($, e, next) => {
-    state.visible = false;
-    stop(state);
+    if (!state.shared) { state.visible = false; stop(state); }
+    return next(e);
+  });
+
+  on('ui.close', { id: 'aikya-flow' }, async ($, e, next) => {
+    if (state.shared) { state.visible = false; state.shared = false; stop(state); }
     return next(e);
   });
 
@@ -65,18 +73,29 @@ export function register(on) {
   });
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
-    if (e.requestId !== PANE) return next(e);
+    const shared = e.requestId === 'aikya-flow';
+    if (e.requestId !== PANE && !shared) {
+      state.visible = false; state.shared = false; stop(state);
+      return next(e);
+    }
+    const theirs = shared ? await next(e) : null;
+    if (shared && state.hidden) return theirs;
+    if (shared && (!state.shared || !state.visible)) {
+      state.shared = true; state.visible = true; sync($, state);
+    }
+    if (!shared) state.shared = false;
     const { Box, Text, Code, Svg } = $.ui.resolve(e);
     const status = state.still ? 'Still mode' : state.paused ? 'Paused' : sampleScene(state.frame).phase;
     const columns = e.props.bodyColumns || Math.max(12, (e.viewport?.columns || 48) - 4);
     const artwork = e.surface === 'desktop' || e.surface === 'vscode'
       ? Svg({ source: svgFrame(state.frame), alt: 'Boxes moving from left to right on a conveyor belt' })
       : Code({ source: asciiFrame(state.frame, columns) });
-    return Box({ flexDirection: 'column', children: [
+    const content = Box({ flexDirection: 'column', children: [
       Text({ key: 'title', bold: true, children: ['AIKYA BOXBOT'] }),
       Text({ key: 'activity', children: [status] }),
       artwork,
       Text({ dimColor: true, children: ['Decorative animation. No task progress is measured.'] }),
     ] });
+    return shared ? Box({ flexDirection: 'column', children: [theirs, content] }) : content;
   });
 }

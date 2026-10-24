@@ -5,15 +5,17 @@ Independent Claude Code mods, with an individual installer for each released mod
 | Mod | Status | Purpose |
 | --- | --- | --- |
 | [Aikya BoxBot](mods/aikya-boxbot/) | Available | Decorative boxes on a moving conveyor belt, with no on-screen controls |
-| [Aikya Flow](mods/aikya-flow/) | Planned | Command activity and evidence-backed workflow states |
-| [Aikya Usage](mods/aikya-usage/) | Planned | Context, tokens and usage together on one compact bottom line |
+| [Aikya Flow](mods/aikya-flow/) | Available | Command activity and evidence-backed workflow states |
+| [Aikya Usage](mods/aikya-usage/) | Available | Context, observed tokens and account usage on one compact bottom line |
 
-Only released mods appear in the installation menu and marketplace. Flow and Usage are design references, not installable plugins. The combined right-side Flow/BoxBot layout and automatic startup are also pending; BoxBot currently opens with `/aikya-boxbot`.
+After restart, Flow opens a native pane automatically without requesting keyboard focus. BoxBot joins below Flow in the same pane when both are enabled. Usage appears on one compact line below the terminal prompt. Use a sufficiently wide fullscreen terminal for Claude Code on the left and the mods on the right; placement is controlled by Claude Code.
+
+Flow works without a semantic bridge and marks phases **No evidence** until connected to an existing compatible Aikya execution cache. Usage counts observed requests since the mod loaded, not earlier transcript history. See each mod’s documentation for its data sources and limits.
 
 ## Requirements
 
 - macOS or Linux with Bash 3.2 or later and Git.
-- Claude Code with mods support, available as `claude` on PATH. BoxBot is tested with Claude Code **2.1.308**.
+- Claude Code with mods support, available as `claude` on PATH. The mods are tested with Claude Code **2.1.308**.
 - Access to this GitHub repository when cloning or installing directly from GitHub.
 
 ## Choose mods to install
@@ -31,13 +33,15 @@ Aikya Mods
 
 Available mods:
   1) aikya-boxbot
+  2) aikya-flow
+  3) aikya-usage
   a) Install all available mods
   q) Quit
 
 Select mods (numbers separated by spaces):
 ```
 
-Select a number, enter several numbers separated by spaces, choose `a` for all available mods, or `q` to quit. The full selection is checked before any configuration changes. The current release has one available mod.
+Select a number, enter several numbers separated by spaces, choose `a` for all available mods, or `q` to quit. The full selection is checked before any configuration changes. The current release has three available mods.
 
 The installers register this local checkout as the `aikya-mods` marketplace and invoke Claude Code's own plugin installer. Keep the checkout if you use this route; it remains the marketplace source. Restart Claude Code after installation.
 
@@ -45,6 +49,8 @@ The installers register this local checkout as the `aikya-mods` marketplace and 
 
 ```sh
 bash mods/aikya-boxbot/install.sh
+bash mods/aikya-flow/install.sh
+bash mods/aikya-usage/install.sh
 ```
 
 Or use Claude Code's hosted marketplace route:
@@ -67,7 +73,7 @@ Both hosted routes require access to the repository. The scripts do not fetch or
 bash install.sh --list
 bash install.sh --all
 bash install.sh aikya-boxbot --dry-run
-bash install.sh aikya-boxbot --scope user
+bash install.sh aikya-flow aikya-usage --scope user
 bash mods/aikya-boxbot/install.sh --scope local
 ```
 
@@ -102,16 +108,20 @@ The animation is decorative and does not measure task progress, tool success, or
 
 ```sh
 python3 -m unittest discover -s tests -v
-bash -n install.sh mods/aikya-boxbot/install.sh
+for script in install.sh mods/*/install.sh; do bash -n "$script"; done
 claude plugin validate . --strict
-claude plugin validate mods/aikya-boxbot --strict
-claude plugin test mods/aikya-boxbot
+for mod in mods/*; do
+  claude plugin validate "$mod" --strict
+  claude plugin test "$mod"
+done
 python3 tests/integration_install.py
 ```
 
 Installer tests exercise real shell scripts against an isolated CLI boundary. Native mod tests use Claude Code's test kit. `integration_install.py` performs a real install and list check in a disposable `CLAUDE_CONFIG_DIR`; it leaves your normal Claude configuration untouched. The repository workflow runs installer tests on macOS and Linux; native checks are run locally with the tested Claude Code version.
 
 Official references: [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), [mods](https://code.claude.com/docs/en/plugins/mods/reference).
+
+Validation results and scope: [Flow and Usage validation](aikya/docs/research/2026-10-24-mods-validation.md).
 
 ## License
 

@@ -39,16 +39,16 @@ if stage == "install" and sys.argv[1:3] == ["plugin", "install"]:
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
-    def expected(self, scope="user", root=ROOT):
+    def expected(self, scope="user", root=ROOT, mods=("aikya-boxbot",)):
         return [["plugin", "marketplace", "add", str(root), "--scope", scope],
-                ["plugin", "install", "aikya-boxbot@aikya-mods", "--scope", scope]]
+                *[ ["plugin", "install", mod + "@aikya-mods", "--scope", scope] for mod in mods ]]
 
-    def test_list_offers_only_implemented_mods_without_calling_claude(self):
+    def test_list_offers_all_released_mods_without_calling_claude(self):
         result = self.run_installer("--list")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("aikya-boxbot", result.stdout)
-        self.assertNotIn("aikya-flow", result.stdout)
-        self.assertNotIn("aikya-usage", result.stdout)
+        self.assertIn("aikya-flow", result.stdout)
+        self.assertIn("aikya-usage", result.stdout)
         self.assertEqual(self.calls(), [])
 
     def test_named_mod_registers_and_installs_at_requested_scope(self):
@@ -74,7 +74,7 @@ if stage == "install" and sys.argv[1:3] == ["plugin", "install"]:
 
     def test_invalid_selection_is_rejected_before_any_install(self):
         for args, input in [(("aikya-boxbot", "unknown"), None), ((), "1 999\n"),
-                            (("aikya-flow",), None), (("--scope", "system", "aikya-boxbot"), None),
+                            (("aikya-unknown",), None), (("--scope", "system", "aikya-boxbot"), None),
                             (("--scope",), None), (("--unknown",), None),
                             (("--all", "aikya-boxbot"), None)]:
             with self.subTest(args=args, input=input):
@@ -92,7 +92,7 @@ if stage == "install" and sys.argv[1:3] == ["plugin", "install"]:
     def test_all_installs_each_available_mod_once(self):
         result = self.run_installer("--all")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.calls(), self.expected())
+        self.assertEqual(self.calls(), self.expected(mods=("aikya-boxbot", "aikya-flow", "aikya-usage")))
 
     def test_duplicate_selection_installs_once(self):
         result = self.run_installer("aikya-boxbot", "aikya-boxbot")
@@ -104,12 +104,25 @@ if stage == "install" and sys.argv[1:3] == ["plugin", "install"]:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), self.expected("local"))
 
+    def test_flow_and_usage_install_individually_and_as_a_menu_selection(self):
+        for mod in ("aikya-flow", "aikya-usage"):
+            with self.subTest(mod=mod):
+                if self.log.exists():
+                    self.log.unlink()
+                result = self.run_installer("--scope", "project", script=ROOT / "mods" / mod / "install.sh")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.calls(), self.expected("project", mods=(mod,)))
+        self.log.unlink(missing_ok=True)
+        result = self.run_installer(input="2 3\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), self.expected(mods=("aikya-flow", "aikya-usage")))
+
     def test_repository_paths_with_spaces_are_one_argument(self):
         copied = self.base / "repository with spaces"
         shutil.copytree(ROOT, copied, ignore=shutil.ignore_patterns(".git", "__pycache__"))
         result = self.run_installer("--all", script=copied / "install.sh")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.calls(), self.expected(root=copied.resolve()))
+        self.assertEqual(self.calls(), self.expected(root=copied.resolve(), mods=("aikya-boxbot", "aikya-flow", "aikya-usage")))
 
     def test_marketplace_failure_prevents_install(self):
         self.env["AIKYA_TEST_FAIL"] = "marketplace"
