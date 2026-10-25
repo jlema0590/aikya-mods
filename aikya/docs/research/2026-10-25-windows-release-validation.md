@@ -30,7 +30,22 @@ The Release workflow rehearses on a push to `featuree/install-IDE`: resolve VERS
 
 Stable tag pushes publish after validation. Manual runs for existing tags default to dry-run; publication requires `dry_run=false`. The publishing job alone has write permission. It checks the tag still points at the validated SHA and publishes the verified assets through a draft using the changelog notes.
 
-Remote results are recorded after the push. A local result is not a substitute for the Windows runner or artifact round trip.
+Confirmed remotely for implementation commit `16c31600e0d087c9910e5a24fd578fb3541af44f`:
+
+| Runner | Python suite | Native mods | Real source / ZIP installs | Scope and path checks |
+| --- | --- | --- | --- | --- |
+| Ubuntu | 53 passed | 39 passed | Passed | Passed |
+| macOS | 53 passed | 39 passed | Passed | Passed |
+| Windows | 26 passed, 27 skipped | 39 passed | Passed | Passed with PowerShell 5.1 and 7 |
+
+The 27 Windows skips are the 15 local Bash tests, 11 online Bash tests and one symlink test requiring extra Windows privileges. PowerShell tests, native tests and real Windows installations all ran.
+
+- [Validation run 40231449712](https://github.com/jlema0590/aikya-mods/actions/runs/40231449712): all three OS jobs passed.
+- [Release rehearsal 40231449722](https://github.com/jlema0590/aikya-mods/actions/runs/40231449722): version resolution, all three validation jobs and packaging passed. All eight assets survived upload/download and offline verification. The publish job was skipped as intended.
+
+The first run of the new packaging test exposed CRLF in the test-generated VERSION on Windows. The fixture now writes LF explicitly, matching the repository attributes, while retaining the exact-byte archive assertion. Both the complete local suite and the remote Windows suite passed after that adjustment.
+
+The workflow request shell was also executed locally for six cases: branch rehearsal, stable tag, manual dry-run, explicit manual publication, malformed tag and missing tag. The first four selected the expected ref/publication mode; the last two failed before producing outputs. This exercises routing without creating a real tag or release.
 
 ## Limits
 
