@@ -16,7 +16,7 @@ For direct installation from the hosted marketplace in a Claude Code session:
 /plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
 ```
 
-Restart Claude Code after installation, then enter `/aikya-boxbot`. This repository is private; direct GitHub installation requires access.
+Restart Claude Code after installation, then enter `/aikya-boxbot`. This repository is public. See the [online installers](../../README.md#install-with-one-command) for Linux, macOS and Windows.
 
 ## Try without installation
 
@@ -37,6 +37,8 @@ Then enter:
 The panel displays the animation without buttons or on-screen controls. Escape closes it when Claude gives the pane keyboard focus. The loop runs when its independent pane or its shared Flow section is visible and stops when that pane closes or the session ends. Reopening preserves its position and playback choices. Playback remains available through the commands below.
 
 ## Terminal layout requirement
+
+The same Claude terminal surface applies when `claude` is started in Cursor, Trae or a JetBrains IDE's integrated terminal. User-scoped installation is shared only when those terminals use the same user, runtime and Claude configuration. See the [integrated-terminal validation matrix](../../docs/terminal-compatibility.md) for actual validation status and the manual protocol.
 
 When Aikya Flow is enabled, BoxBot appears below Flow in the same native pane automatically. Flow opens that pane at interactive startup, keeping the prompt's keyboard focus. No on-screen controls are added. Closing the Flow pane stops the conveyor; hiding BoxBot removes only its section.
 

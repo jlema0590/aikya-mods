@@ -10,7 +10,7 @@ From the repository root:
 bash mods/aikya-flow/install.sh
 ```
 
-Or in Claude Code, with access to the private repository:
+Or in Claude Code, from the public repository:
 
 ```text
 /plugin install aikya-flow --marketplace jlema0590/aikya-mods
@@ -21,6 +21,8 @@ Restart Claude Code. Flow opens its native pane automatically in interactive ses
 When BoxBot 0.3.0 or later is enabled, its conveyor appears below Flow in the same pane. Flow and Usage have no dependency on each other. Flow also runs without BoxBot.
 
 ## Commands
+
+When started with `claude` in an IDE's integrated terminal, Flow uses Claude's terminal panel and events. See the [integrated-terminal validation matrix](../../docs/terminal-compatibility.md) for installation across projects, fullscreen requirements and per-IDE checks.
 
 ```text
 /aikya-flow
