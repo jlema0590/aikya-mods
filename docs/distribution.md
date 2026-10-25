@@ -9,6 +9,7 @@
 - An existing checkout can be supplied explicitly for source installation. That route skips the installer's download and Git operations.
 - Pull requests and branch pushes validate installers, package construction, Claude manifests and native mod tests. Windows validates the PowerShell path.
 - Releases use stable `vMAJOR.MINOR.PATCH` tags; individual mod versions remain independent and must match the marketplace catalog. Run the same checks on the exact tagged commit before publishing.
+- VERSION is the bundle version, starting at `0.0.10`. The tag must match it, and CHANGELOG.md must contain exactly one non-empty dated entry for that version. Packaging rejects inconsistent inputs before writing output.
 - Release files include a complete source ZIP, an individual ZIP for each mod, both online installers, release metadata and SHA256 sums. Do not include credentials, generated types, Git internals or temporary output.
 - Build the full release in a temporary draft, upload every asset, then publish. Never overwrite an already published release. Failed draft uploads may be retried.
 - No workflow or real release is published by editing these files locally. They take effect after the changes are pushed to GitHub.
@@ -48,7 +49,7 @@ For a tag such as `v1.2.3`, the workflow produces eight assets:
 - `aikya-mods-v1.2.3.zip`: complete installable checkout under `aikya-mods/`.
 - One ZIP per mod, named with that mod's own version, such as `aikya-flow-0.1.0.zip`.
 - `install.sh` and `install.ps1`: standalone online installers.
-- `release.json`: bundle version, tested Claude version and mod versions.
+- `release.json`: bundle version, tested Claude version, mod versions and that version's changelog notes.
 - `SHA256SUMS`: SHA256 for the other seven files.
 
 After the first release is published, its installers are also downloadable through `https://github.com/jlema0590/aikya-mods/releases/latest/download/install.sh` and the corresponding `install.ps1` URL. Downloading an installer from a release pins the installer file; the installed code still defaults to `main` unless a version option is supplied.
@@ -67,19 +68,20 @@ Windows can inspect each file with `Get-FileHash -Algorithm SHA256` and compare 
 
 ## Creating a release
 
-1. Merge the validated changes into `main` and choose a new stable bundle version. Individual mod versions only change when that mod changes; each version must match its marketplace entry.
-2. Create and push the tag on the intended commit, for example:
+1. Update `VERSION` and add a dated `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` entry to `CHANGELOG.md`, with non-empty English release notes. The first bundle is `0.0.10`. Keep unfinished changes under `[Unreleased]`. Individual mod versions only change when their code changes; each version must match its marketplace entry.
+2. Push `featuree/install-IDE` to rehearse the release. The Release workflow validates VERSION/changelog and the exact commit on Linux, macOS and Windows, builds the assets, uploads/downloads them as an Actions artifact and verifies the downloaded files. Its publishing job is skipped for branch pushes. After review, merge into `main`.
+3. Create and push the matching tag on the intended commit:
 
    ```sh
-   git tag -a v1.2.3 -m "Aikya Mods v1.2.3"
-   git push origin v1.2.3
+   git tag -a v0.0.10 -m "Aikya Mods v0.0.10"
+   git push origin v0.0.10
    ```
 
-3. The Release workflow resolves the tag to a commit and calls the reusable Validation workflow for that exact SHA. Validation runs on Linux, macOS and Windows with Claude Code pinned in `.claude-version`. It runs unit tests, strict manifest checks, native mod tests, real installation, and installation from the release ZIP.
-4. After successful validation, the publish job checks that the tag still points to the same commit. It builds the assets and creates a draft release. Every uploaded asset must match the local inventory, byte size and GitHub SHA256 digest before the draft is published.
-5. A failed upload or verification leaves a draft. Re-run the workflow manually with the same tag to resume a draft targeting that commit. Published releases and drafts for another commit are left unchanged. Publishing an older bundle does not replace a newer release as `latest`.
+4. The tag run resolves the tag to a commit, requires the same VERSION and changelog entry, and calls the reusable Validation workflow for that exact SHA. Validation runs with Claude Code pinned in `.claude-version`: unit tests, strict manifest checks, native mod tests, real installation, ZIP installation and scope/path checks. Windows checks PowerShell 5.1 and 7.
+5. The package job builds and verifies the artifact round trip. Only the publish job requests `contents: write`. It downloads those assets, checks that the tag still points at the validated commit, and creates a draft whose notes come from the changelog. Every release asset must match the inventory, size and GitHub SHA256 digest before publication.
+6. A failed upload or verification leaves a draft. Run the workflow manually with the same existing tag and `dry_run=false` to resume publication. Manual runs default to `dry_run=true`, which validates and packages without changing GitHub Releases. Published releases and drafts for another commit are left unchanged. An older bundle does not replace a newer release as `latest`.
 
-Only the publish job requests `contents: write`. Tests use temporary Claude configurations and do not need model credentials. The tag examples are illustrative; no release is created by the local test suite.
+Tests use temporary Claude configurations and do not need model credentials. Tag creation/publication is separate from the branch rehearsal. The local test suite does not create a tag or a release.
 
 Local verification:
 
@@ -87,12 +89,15 @@ Local verification:
 python3 -m unittest discover -s tests -v
 python3 tests/integration_install.py
 python3 tests/integration_package.py
-python3 scripts/build_release.py --version v0.0.0 --output dist
+python3 tests/integration_platforms.py
+python3 scripts/build_release.py --check --version v0.0.10
+python3 scripts/build_release.py --output dist
+python3 scripts/publish_release.py --repo jlema0590/aikya-mods --tag v0.0.10 --sha "$(git rev-parse HEAD)" --assets dist --dry-run
 ```
 
 The build output must be empty. The publisher's tests simulate GitHub at the CLI boundary; the build and installation tests use real files and real Claude installs. A GitHub-hosted workflow run is only validated once these files have been pushed and Actions has executed them.
 
-Local results recorded on 2026-10-25: **48 Python tests and 39 native mod tests passed** on macOS. The PowerShell installer tests ran with portable PowerShell 7.5.12; workflows passed actionlint 1.7.12, and strict Claude validation and Bash syntax checks passed. Real isolated installs succeeded through the streamed online Bash script, the PowerShell source installer and the generated complete ZIP. No GitHub release was published during these checks. Actual Linux/Windows runner results remain pending the first Actions run.
+The earlier 2026-10-25 validation covered 48 Python tests and 39 native tests locally. The subsequent platform audit found two Windows-only Flow fixture failures, corrected in the 0.0.10 preparation. Current verification evidence is recorded in [Windows and release validation](../aikya/docs/research/2026-10-25-windows-release-validation.md).
 
 References: [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows), [GitHub release assets](https://docs.github.com/en/rest/releases/assets), [Claude mod testing](https://code.claude.com/docs/en/plugins/mods/test).
 

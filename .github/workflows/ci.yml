@@ -27,6 +27,7 @@ jobs:
     env:
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
       POWERSHELL_TELEMETRY_OPTOUT: '1'
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -65,3 +66,5 @@ jobs:
         run: python tests/integration_install.py
       - name: Build and install the release archive
         run: python tests/integration_package.py
+      - name: Test scopes, repeat installation, spaces and Unicode
+        run: python tests/integration_platforms.py

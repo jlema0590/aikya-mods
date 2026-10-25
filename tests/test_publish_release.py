@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import hashlib
+from release_fixture import release_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA = 'a' * 40
@@ -18,7 +20,8 @@ class PublishReleaseTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
         self.dist = self.base / 'assets'
-        built = subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--version', 'v1.2.3', '--output', str(self.dist)], capture_output=True, text=True)
+        source = release_fixture(ROOT, self.base / 'source')
+        built = subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--root', str(source), '--version', 'v1.2.3', '--output', str(self.dist)], capture_output=True, text=True)
         self.assertEqual(built.returncode, 0, built.stderr)
         self.state = self.base / 'state.json'
         self.state.write_text('null')
@@ -35,6 +38,7 @@ if args[0] == 'api':
     else: print(json.dumps(state))
 elif args[:2] == ['release', 'create']:
     state = {'tag_name': args[2], 'draft': True, 'target_commitish': args[args.index('--target') + 1], 'assets': []}
+    if '--notes-file' in args: state['body'] = pathlib.Path(args[args.index('--notes-file') + 1]).read_text(encoding='utf-8')
 elif args[:2] == ['release', 'upload']:
     if fault == 'upload': sys.exit(19)
     state['assets'] = [{'name': pathlib.Path(p).name, 'size': pathlib.Path(p).stat().st_size,
@@ -53,9 +57,9 @@ state_path.write_text(json.dumps(state))
             launcher.chmod(0o755)
         self.env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'], AIKYA_GH_STATE=str(self.state), AIKYA_GH_LOG=str(self.log))
 
-    def publish(self):
+    def publish(self, *extra):
         return subprocess.run([sys.executable, str(ROOT / 'scripts/publish_release.py'), '--repo', 'owner/repo',
-                               '--tag', 'v1.2.3', '--sha', SHA, '--assets', str(self.dist)],
+                               '--tag', 'v1.2.3', '--sha', SHA, '--assets', str(self.dist), *extra],
                               env=self.env, capture_output=True, text=True)
 
     def calls(self):
@@ -65,6 +69,7 @@ state_path.write_text(json.dumps(state))
         result = self.publish()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(json.loads(self.state.read_text())['draft'])
+        self.assertEqual(json.loads(self.state.read_text())['body'], '### Added\n\n- Fixture release notes.\n')
         mutations = [args[:2] for args in self.calls() if args[0] == 'release']
         self.assertEqual(mutations, [['release', 'create'], ['release', 'upload'], ['release', 'edit']])
 
@@ -99,6 +104,27 @@ state_path.write_text(json.dumps(state))
         (self.dist / 'install.sh').write_text('tampered')
         result = self.publish()
         self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), [])
+
+    def test_dry_run_checks_real_assets_without_contacting_github(self):
+        result = self.publish('--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('8', result.stdout)
+        self.assertIsNone(json.loads(self.state.read_text()))
+        self.assertEqual(self.calls(), [])
+
+    def test_missing_notes_are_rejected_even_with_valid_checksums(self):
+        metadata_path = self.dist / 'release.json'
+        metadata = json.loads(metadata_path.read_text())
+        metadata.pop('release_notes', None)
+        metadata_path.write_text(json.dumps(metadata))
+        sums = self.dist / 'SHA256SUMS'
+        lines = [line for line in sums.read_text().splitlines() if not line.endswith('  release.json')]
+        lines.append(hashlib.sha256(metadata_path.read_bytes()).hexdigest() + '  release.json')
+        sums.write_text('\n'.join(lines) + '\n')
+        result = self.publish()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('notes', result.stderr.lower())
         self.assertEqual(self.calls(), [])
 
     def test_an_older_release_does_not_replace_the_latest_version(self):

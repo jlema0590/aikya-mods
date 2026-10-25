@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from build_release import SEMVER
 
@@ -16,6 +17,8 @@ def local_assets(folder: Path, tag: str) -> dict[str, tuple[int, str]]:
     metadata = json.loads((folder / 'release.json').read_text())
     if metadata.get('version') != tag:
         raise ValueError('Release metadata does not match the requested tag.')
+    if not isinstance(metadata.get('release_notes'), str) or not metadata['release_notes'].strip():
+        raise ValueError('Release notes are required in release.json.')
     expected = {f'aikya-mods-{tag}.zip', 'install.sh', 'install.ps1', 'release.json'}
     for name, version in metadata['mods'].items():
         if not re.fullmatch(r'aikya-[a-z0-9-]+', name) or not re.fullmatch(SEMVER, version):
@@ -41,12 +44,15 @@ def local_assets(folder: Path, tag: str) -> dict[str, tuple[int, str]]:
     return assets
 
 
-def publish(repo: str, tag: str, sha: str, folder: Path) -> None:
+def publish(repo: str, tag: str, sha: str, folder: Path, dry_run: bool = False) -> None:
     if not re.fullmatch('v' + SEMVER, tag) or not re.fullmatch(r'[a-f0-9]{40}|[a-f0-9]{64}', sha):
         raise ValueError('A stable version tag and full commit SHA are required.')
     if not re.fullmatch(r'[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+', repo):
         raise ValueError('Use an owner/repository name.')
     assets = local_assets(folder, tag)
+    if dry_run:
+        print(f'Verified {tag}: {len(assets)} release assets. Dry run complete.')
+        return
     executable = shutil.which('gh')
     if not executable:
         raise ValueError('GitHub CLI is required.')
@@ -63,8 +69,11 @@ def publish(repo: str, tag: str, sha: str, folder: Path) -> None:
         if existing.get('target_commitish') != sha:
             raise ValueError('The existing draft targets another commit; it was left unchanged.')
     else:
-        gh('release', 'create', tag, '--repo', repo, '--verify-tag', '--target', sha,
-           '--draft', '--generate-notes', '--title', f'Aikya Mods {tag}')
+        with tempfile.TemporaryDirectory(prefix='aikya-release-notes-') as temporary:
+            notes = Path(temporary) / 'notes.md'
+            notes.write_text(json.loads((folder / 'release.json').read_text())['release_notes'], encoding='utf-8')
+            gh('release', 'create', tag, '--repo', repo, '--verify-tag', '--target', sha,
+               '--draft', '--notes-file', str(notes), '--title', f'Aikya Mods {tag}')
     gh('release', 'upload', tag, '--repo', repo, *(str(folder / name) for name in assets), '--clobber')
     remote = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
     uploaded = {item['name']: (item['size'], item.get('digest')) for item in remote['assets']}
@@ -84,9 +93,10 @@ def main() -> int:
     parser.add_argument('--tag', required=True)
     parser.add_argument('--sha', required=True)
     parser.add_argument('--assets', type=Path, required=True)
+    parser.add_argument('--dry-run', action='store_true', help='Verify local assets without contacting GitHub')
     args = parser.parse_args()
     try:
-        publish(args.repo, args.tag, args.sha, args.assets.resolve())
+        publish(args.repo, args.tag, args.sha, args.assets.resolve(), args.dry_run)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         detail = error.stderr if isinstance(error, subprocess.CalledProcessError) else str(error)
         print(f'Error: {detail}', file=sys.stderr)

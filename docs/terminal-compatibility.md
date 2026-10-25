@@ -10,6 +10,12 @@ Run from any local terminal, using the path to this checkout:
 bash /path/to/aikya-mods/install.sh --all --scope user
 ```
 
+Windows PowerShell, from a retained checkout:
+
+```powershell
+& C:\path\to\aikya-mods\installers\install.ps1 -Source C:\path\to\aikya-mods -All -Scope user
+```
+
 Then open a **new integrated terminal**, enter your project and start Claude Code:
 
 ```sh
@@ -28,8 +34,21 @@ SSH hosts, containers and WSL have separate runtimes. A different OS user or `CL
 - Flow opens its panel at interactive startup without requesting keyboard focus. BoxBot joins below Flow when both are enabled. Without Flow, open BoxBot with `/aikya-boxbot`.
 - Usage renders below the Claude prompt. `/aikya-usage` prints its details without opening another panel.
 - Maximize the IDE terminal area and give Claude enough columns. A side panel requires Claude's fullscreen renderer; a narrow terminal may use an inline panel instead. Maximizing the IDE window and enabling Claude fullscreen are separate actions.
-- For a fullscreen session without changing a saved renderer preference, start `CLAUDE_CODE_NO_FLICKER=1 claude`. `/tui fullscreen` switches and saves Claude's preference; use it deliberately.
+- For a fullscreen session without changing a saved renderer preference, use the shell-specific command below. `/tui fullscreen` switches and saves Claude's preference; use it deliberately.
 - `No evidence` is expected without a matching Aikya execution cache. `N/A` means Claude has not supplied a reading. Neither means the plugin failed to load.
+
+Linux/macOS:
+
+```sh
+CLAUDE_CODE_NO_FLICKER=1 claude
+```
+
+Windows PowerShell (the environment variable applies to the current PowerShell process):
+
+```powershell
+$env:CLAUDE_CODE_NO_FLICKER = '1'
+claude
+```
 
 Run these commands in the IDE terminal if a different terminal works:
 
@@ -38,6 +57,8 @@ command -v claude
 claude --version
 claude plugin list --json
 ```
+
+In Windows PowerShell, replace `command -v claude` with `Get-Command claude`; the two remaining commands are the same.
 
 Check the three IDs `aikya-boxbot@aikya-mods`, `aikya-flow@aikya-mods`, and `aikya-usage@aikya-mods` and that they are enabled. Compare the runtime/user/configuration with the terminal where installation succeeded. A test using `--plugin-dir` proves session loading, not permanent installation.
 

@@ -2,6 +2,8 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
+Bundle version: **0.0.10**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+
 | Mod | Status | Purpose |
 | --- | --- | --- |
 | [Aikya BoxBot](mods/aikya-boxbot/) | Available | Decorative boxes on a moving conveyor belt, with no on-screen controls |
@@ -59,6 +61,14 @@ claude
 ```
 
 This shares the plugins across terminals using the same user, runtime and Claude configuration. SSH, containers, WSL and a different `CLAUDE_CONFIG_DIR` are separate environments. Flow and BoxBot appear inside Claude's terminal UI; Usage appears below its prompt. For a side panel, maximize the terminal area and use Claude's fullscreen renderer, for example `CLAUDE_CODE_NO_FLICKER=1 claude`.
+
+In Windows PowerShell, install from a retained checkout and start fullscreen with:
+
+```powershell
+& C:\path\to\aikya-mods\installers\install.ps1 -Source C:\path\to\aikya-mods -All -Scope user
+$env:CLAUDE_CODE_NO_FLICKER = '1'
+claude
+```
 
 See the [integrated-terminal protocol and per-IDE validation matrix](docs/terminal-compatibility.md). Per-IDE visual checks remain pending; the automated suites validate plugin behavior and installation separately.
 
@@ -160,12 +170,14 @@ for mod in mods/*; do
 done
 python3 tests/integration_install.py
 python3 tests/integration_package.py
-python3 scripts/build_release.py --version v0.0.0 --output dist
+python3 tests/integration_platforms.py
+python3 scripts/build_release.py --check
+python3 scripts/build_release.py --version v0.0.10 --output dist
 ```
 
 Installer tests execute the real Bash and PowerShell scripts against isolated Git/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).
 
-The [release workflow](.github/workflows/release.yml) runs on stable `vMAJOR.MINOR.PATCH` tags, or manually for an existing tag. It validates the tagged commit on all three operating systems, builds eight release assets, then uploads and verifies them in a draft before publishing. Bundle tags are independent of individual mod versions. See the [release procedure](docs/distribution.md#creating-a-release).
+The [release workflow](.github/workflows/release.yml) rehearses the full validation and packaging path on pushes to `featuree/install-IDE`, without publishing. Stable `vMAJOR.MINOR.PATCH` tag pushes publish after all checks pass; manual runs default to dry-run for an existing tag. The tag must match VERSION and a dated changelog entry. The workflow validates the exact commit on all three operating systems, builds eight assets, verifies their artifact round trip, then uses those same files for draft publication. Release notes come from the changelog. See the [release procedure](docs/distribution.md#creating-a-release).
 
 Official references: [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), [mods](https://code.claude.com/docs/en/plugins/mods/reference).
 

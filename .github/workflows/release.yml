@@ -2,12 +2,18 @@ name: Release
 on:
   push:
     tags: ['v*']
+    branches: ['featuree/install-IDE']
   workflow_dispatch:
     inputs:
       tag:
         description: Existing stable release tag (vMAJOR.MINOR.PATCH)
         required: true
         type: string
+      dry_run:
+        description: Verify the release without publishing
+        required: false
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -17,33 +23,82 @@ jobs:
   resolve:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.tag.outputs.value }}
-      sha: ${{ steps.commit.outputs.sha }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      sha: ${{ steps.metadata.outputs.sha }}
+      publish: ${{ steps.request.outputs.publish }}
     steps:
-      - name: Validate the tag before checkout
-        id: tag
+      - name: Resolve a branch rehearsal or stable release request
+        id: request
         env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          REQUESTED_TAG: ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo 'Use a stable release tag such as v1.2.3.' >&2
-            exit 1
+          if [[ "$EVENT_NAME" == push && "$REF_TYPE" == branch ]]; then
+            printf 'ref=%s\npublish=false\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            if [[ ! "$REQUESTED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo 'Use a stable release tag such as v0.0.10.' >&2
+              exit 1
+            fi
+            publish=false
+            if [[ "$EVENT_NAME" == push || "$DRY_RUN" == false ]]; then publish=true; fi
+            printf 'ref=refs/tags/%s\npublish=%s\n' "$REQUESTED_TAG" "$publish" >> "$GITHUB_OUTPUT"
           fi
-          printf 'value=%s\n' "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ steps.tag.outputs.value }}
+          ref: ${{ steps.request.outputs.ref }}
           persist-credentials: false
-      - name: Resolve the immutable commit to validate
-        id: commit
-        run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Require matching VERSION, tag and changelog
+        id: metadata
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+        run: |
+          tag="${REQUESTED_TAG:-v$(cat VERSION)}"
+          python scripts/build_release.py --check --version "$tag"
+          printf 'tag=%s\nsha=%s\n' "$tag" "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   validate:
     needs: resolve
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.resolve.outputs.sha }}
-  publish:
+  package:
     needs: [resolve, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build release assets
+        run: python scripts/build_release.py --version "$RELEASE_TAG" --output dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: aikya-mods-${{ needs.resolve.outputs.tag }}-${{ needs.resolve.outputs.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/download-artifact@v8
+        with:
+          name: aikya-mods-${{ needs.resolve.outputs.tag }}-${{ needs.resolve.outputs.sha }}
+          path: verified-assets
+      - name: Verify downloaded assets without contacting GitHub Releases
+        run: python scripts/publish_release.py --repo "$GH_REPO" --tag "$RELEASE_TAG" --sha "$RELEASE_SHA" --assets verified-assets --dry-run
+  publish:
+    if: needs.resolve.outputs.publish == 'true'
+    needs: [resolve, package]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -59,13 +114,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          name: aikya-mods-${{ needs.resolve.outputs.tag }}-${{ needs.resolve.outputs.sha }}
+          path: dist
       - name: Confirm the tag still points to the validated commit
         run: |
           git fetch --depth 1 origin "refs/tags/$RELEASE_TAG"
           test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$RELEASE_SHA"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-      - name: Build release assets
-        run: python scripts/build_release.py --version "$RELEASE_TAG" --output dist
       - name: Upload, verify and publish through a draft
         env:
           GH_TOKEN: ${{ github.token }}

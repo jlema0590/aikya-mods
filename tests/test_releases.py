@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from release_fixture import release_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,16 +18,15 @@ class ReleaseTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix='aikya-release-')
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
+        self.source = release_fixture(ROOT, self.base / 'source')
 
-    def build(self, output='dist', root=ROOT, version='v1.2.3'):
+    def build(self, output='dist', root=None, version='v1.2.3'):
         return subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_release.py'),
-                               '--root', str(root), '--version', version, '--output', str(self.base / output)],
+                               '--root', str(root or self.source), '--version', version, '--output', str(self.base / output)],
                               text=True, capture_output=True)
 
     def fixture(self):
-        fixture = self.base / 'source'
-        shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns('.git', '__pycache__', 'dist'))
-        return fixture
+        return release_fixture(ROOT, self.base / 'invalid-source')
 
     def test_archives_contain_installable_mods_and_hashes_match_actual_assets(self):
         result = self.build()
@@ -34,11 +34,14 @@ class ReleaseTests(unittest.TestCase):
         output = self.base / 'dist'
         metadata = json.loads((output / 'release.json').read_text())
         self.assertEqual(metadata['version'], 'v1.2.3')
+        self.assertEqual(metadata['release_notes'], '### Added\n\n- Fixture release notes.\n')
         self.assertEqual(metadata['claude_version'], '2.1.308')
         self.assertEqual(metadata['mods'], {'aikya-boxbot': '0.3.0', 'aikya-flow': '0.1.0', 'aikya-usage': '0.1.0'})
         with zipfile.ZipFile(output / 'aikya-mods-v1.2.3.zip') as archive:
             names = archive.namelist()
             self.assertIn('aikya-mods/install.sh', names)
+            self.assertEqual(archive.read('aikya-mods/VERSION'), b'1.2.3\n')
+            self.assertIn(b'Fixture release notes.', archive.read('aikya-mods/CHANGELOG.md'))
             self.assertIn('aikya-mods/installers/install.ps1', names)
             self.assertIn('aikya-mods/.claude-plugin/marketplace.json', names)
             self.assertIn('aikya-mods/scripts/build_release.py', names)
@@ -75,6 +78,33 @@ class ReleaseTests(unittest.TestCase):
         result = self.build(root=fixture)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('version', result.stderr.lower())
+        self.assertFalse((self.base / 'dist').exists())
+
+    def test_tag_must_match_version_before_any_output_is_created(self):
+        result = self.build(version='v1.2.4')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('VERSION', result.stderr)
+        self.assertFalse((self.base / 'dist').exists())
+
+    def test_missing_duplicate_or_empty_release_notes_are_rejected(self):
+        for index, changelog in enumerate((
+            '# Changelog\n\n## [1.2.2] - 2026-10-24\n\n- Older.\n',
+            '## [1.2.3] - 2026-10-25\n\n- One.\n\n## [1.2.3] - 2026-10-25\n\n- Two.\n',
+            '## [1.2.3] - 2026-10-25\n\n### Added\n',
+        )):
+            with self.subTest(changelog=changelog):
+                (self.source / 'CHANGELOG.md').write_text(changelog, encoding='utf-8')
+                result = self.build(output=f'missing-notes-{index}')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('CHANGELOG', result.stderr)
+                self.assertFalse((self.base / f'missing-notes-{index}').exists())
+
+    def test_check_reads_current_version_without_building_assets(self):
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'),
+                                 '--root', str(self.source), '--check', '--output', str(self.base / 'dist')],
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['version'], 'v1.2.3')
         self.assertFalse((self.base / 'dist').exists())
 
     def test_existing_output_is_not_overwritten(self):
