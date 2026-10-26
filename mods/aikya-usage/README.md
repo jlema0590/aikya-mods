@@ -10,7 +10,7 @@ From the repository root:
 bash mods/aikya-usage/install.sh
 ```
 
-Or in Claude Code, with access to the private repository:
+Or in Claude Code, from the public repository:
 
 ```text
 /plugin install aikya-usage --marketplace jlema0590/aikya-mods
@@ -19,6 +19,8 @@ Or in Claude Code, with access to the private repository:
 Restart Claude Code. The footer is enabled automatically; no usage card occupies the side pane. Flow and BoxBot remain independent.
 
 ## Readings
+
+When `claude` runs in an IDE's integrated terminal, this line belongs to Claude's terminal prompt and continues to use Claude's own metrics. See the [integrated-terminal validation matrix](../../docs/terminal-compatibility.md) for configuration sharing and actual per-IDE validation status.
 
 Example values:
 
