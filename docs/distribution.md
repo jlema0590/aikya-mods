@@ -90,7 +90,7 @@ Unix platform scripts are generated from one Bash engine, with a platform guard;
 
 1. Update VERSION and the README bundle version; add exactly one non-empty dated `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` entry to CHANGELOG.md in English. Keep unfinished changes under Unreleased. Mod versions change only when their own code changes and must match the marketplace catalog.
 2. Push `feature/installers-no-clone` or `develop` for a release rehearsal. Branch runs validate and package without publishing. Review the Linux/macOS/Windows matrix, including PowerShell 5.1 and 7 on Windows and the final generated installers.
-3. On the intended reviewed commit, create and push the matching tag. The next prepared bundle tag is `v0.0.13`; do not move `v0.0.10` or replace its assets.
+3. On the intended reviewed commit, create and push the matching tag. The next prepared bundle tag is `v0.0.14`; do not move `v0.0.10` or replace its assets.
 4. The tag workflow checks VERSION/changelog and validates the exact tag commit. It builds all assets, uploads/downloads them as an Actions artifact and verifies the artifact round trip before publication.
 5. Only the publish job requests `contents: write`. It checks that the tag still points at the validated commit, creates or resumes a draft, uploads every asset and verifies the inventory, sizes and GitHub SHA-256 digests before publishing. Drafts are retrieved by numeric release ID, since a tag lookup may not return a draft.
 6. A failed publication leaves a draft. Dispatch the workflow for the same tag with `dry_run=false` to resume; manual runs default to `dry_run=true`. Published releases and drafts for another commit are preserved. Older releases do not replace newer stable releases as latest.
@@ -105,9 +105,9 @@ python3 tests/integration_install.py
 python3 tests/integration_package.py
 python3 tests/integration_platforms.py
 python3 tests/integration_online_release.py
-python3 scripts/build_release.py --check --version v0.0.13
+python3 scripts/build_release.py --check --version v0.0.14
 python3 scripts/build_release.py --output dist
-python3 scripts/publish_release.py --repo jlema0590/aikya-mods --tag v0.0.13 --sha "$(git rev-parse HEAD)" --assets dist --dry-run
+python3 scripts/publish_release.py --repo jlema0590/aikya-mods --tag v0.0.14 --sha "$(git rev-parse HEAD)" --assets dist --dry-run
 ```
 
 The output directory must be empty. Tests use isolated Claude configurations, never the user's settings, and need no model credentials. The online integration serves fixture releases over loopback HTTP through test-only transport adapters; production installers retain fixed HTTPS endpoints. It executes the generated OS assets with real Claude, checks first/repeated installation, version changes, corruption recovery, every scope and paths with spaces/Unicode. Git invocations during installation fail the test. Test infrastructure can use Python and Node; the installer itself does not require them.

@@ -5,6 +5,25 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-10-26
+
+### Added
+
+- Rounded Flow phase cards with centered connectors and a compact layout for smaller panels.
+- State colors, a four-frame running indicator and 250 ms emphasis for confirmed phase changes and handoffs.
+- Local Flow still/motion commands; one coordinated timer preserves existing two-second evidence polling.
+
+### Changed
+
+- Keep all six phase states and command-specific recipes, with detailed reasons available through the local status command.
+- Remove the idle Claude task placeholder and the normal turn-ended activity banner from Flow.
+- Remove BoxBot's decorative-animation disclaimer from the pane while keeping the conveyor at the bottom.
+- Document updating installed mods from Claude Code's plugin manager and terminal commands.
+
+### Included mods
+
+- Aikya BoxBot 0.3.2, Aikya Flow 0.1.2 and Aikya Usage 0.1.1.
+
 ## [0.0.13] - 2026-10-26
 
 ### Added

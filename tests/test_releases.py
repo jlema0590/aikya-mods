@@ -37,7 +37,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(metadata['version'], 'v1.2.3')
         self.assertEqual(metadata['release_notes'], '### Added\n\n- Fixture release notes.\n')
         self.assertEqual(metadata['claude_version'], '2.1.308')
-        self.assertEqual(metadata['mods'], {'aikya-boxbot': '0.3.1', 'aikya-flow': '0.1.1', 'aikya-usage': '0.1.1'})
+        self.assertEqual(metadata['mods'], {'aikya-boxbot': '0.3.2', 'aikya-flow': '0.1.2', 'aikya-usage': '0.1.1'})
         with zipfile.ZipFile(output / 'aikya-mods-v1.2.3.zip') as archive:
             names = archive.namelist()
             self.assertIn('aikya-mods/install.sh', names)

@@ -11,13 +11,13 @@
       "name": "aikya-boxbot",
       "source": "./mods/aikya-boxbot",
       "description": "Decorative boxes moving along a conveyor belt, without on-screen controls.",
-      "version": "0.3.1"
+      "version": "0.3.2"
     },
     {
       "name": "aikya-flow",
       "source": "./mods/aikya-flow",
       "description": "Command activity and evidence-backed workflow states in a native pane.",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "name": "aikya-usage",

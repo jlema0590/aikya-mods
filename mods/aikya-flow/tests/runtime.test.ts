@@ -35,6 +35,7 @@ function engine(on, options = {}) {
     return { value: { kind: path === '/work' || path === '/cache' ? 'directory' : 'file', size: 500, mtimeMs: 0, isLink: false, realPath: path } }
   })
   on('fs.read', ($, e) => {
+    if (options.onRead) options.onRead()
     const path = fixturePath(e.path)
     if (!(path in files)) throw new Error('ENOENT')
     return { value: JSON.stringify(files[path]) }
@@ -163,5 +164,117 @@ test('a full-height Flow frame does not wrap the original host drawing', async (
   const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 32 } } })
   expect(JSON.stringify(await ui.drawn())).not.toMatch('"type":"engine"')
   expect(await ui.find({ key: 'aikya-mods-footer' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('the idle dock draws six cards without placeholder task or turn summary text', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 46 } } })
+  const drawing = JSON.stringify(await ui.drawn())
+  expect(drawing).not.toMatch('Claude task')
+  expect(drawing).not.toMatch('Native turn turn ended')
+  for (const id of ['explore','plan','implement','validate','security','review']) expect(await ui.find({ key: 'phase-' + id })).toBeDefined()
+  expect(await ui.find({ key: 'connector-explore' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a finished native turn leaves the cards visible without its verbose activity banner', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount(pane)
+  await $.turn.start({ turnId: 't', text: 'test' })
+  await $.turn.complete({ turnId: 't', answer: 'done', durationMs: 1, isAborted: false, reason: 'answer' })
+  const drawing = JSON.stringify(await ui.drawn())
+  expect(drawing).not.toMatch('Turn ended')
+  expect(drawing).not.toMatch('phase evidence is separate')
+  expect(await ui.find({ key: 'phase-review' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('native activity animates only its header and still/motion never invent phase evidence', async ($, on) => {
+  const { clock } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  const ui = await $.ui.mount(pane)
+  await $.turn.start({ turnId: 't', text: 'test' })
+  const first = JSON.stringify(await ui.drawn())
+  await clock.advance(250)
+  expect(JSON.stringify(await ui.drawn())).not.toBe(first)
+  expect((await ui.find({ key: 'phase-explore' })).text).toMatch('? No evidence')
+  await $.command.run({ command: 'aikya-flow', args: 'still' })
+  const still = JSON.stringify(await ui.drawn())
+  await clock.advance(1000)
+  expect(JSON.stringify(await ui.drawn())).toBe(still)
+  await $.command.run({ command: 'aikya-flow', args: 'motion' })
+  const moving = JSON.stringify(await ui.drawn())
+  await clock.advance(250)
+  expect(JSON.stringify(await ui.drawn())).not.toBe(moving)
+  await $.turn.complete({ turnId: 't', answer: 'done', durationMs: 1, isAborted: true, reason: 'aborted' })
+  const interrupted = JSON.stringify(await ui.drawn())
+  await clock.advance(1000)
+  expect(JSON.stringify(await ui.drawn())).toBe(interrupted)
+  await ui.unmount()
+})
+
+test('animation frames preserve two-second cache reads and closing cancels work', async ($, on) => {
+  const path = '/cache/' + identity
+  const raw = rawSnapshot(); raw.phases.plan = { status: 'running', reason: '', evidence: [], actors: {} }
+  let reads = 0
+  const { clock } = engine(on, { files: { [path + '/active.json']: { run_id: 'r1' }, [path + '/r1.json']: raw }, onRead: () => { reads += 1 } })
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-flow', args: 'connect /cache' })
+  const ui = await $.ui.mount(pane)
+  const initialReads = reads
+  const initial = JSON.stringify(await ui.drawn())
+  await clock.advance(1750)
+  expect(reads).toBe(initialReads)
+  expect(JSON.stringify(await ui.drawn())).not.toBe(initial)
+  await clock.advance(250)
+  expect(reads).toBe(initialReads + 3)
+  await $.command.run({ command: 'aikya-flow', args: 'hide' })
+  const closedReads = reads
+  await clock.advance(4000)
+  expect(reads).toBe(closedReads)
+  await ui.unmount()
+})
+
+test('a confirmed handoff emphasizes once and still mode continues receiving phase updates', async ($, on) => {
+  const path = '/cache/' + identity
+  const raw = rawSnapshot(); raw.phases.plan = { status: 'running', reason: '', evidence: [], actors: {} }
+  const { clock } = engine(on, { files: { [path + '/active.json']: { run_id: 'r1' }, [path + '/r1.json']: raw } })
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-flow', args: 'connect /cache' })
+  const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 46 } } })
+  expect(JSON.stringify(await ui.find({ key: 'phase-plan' }))).not.toMatch('"bold":true')
+  raw.phases.plan = { status: 'completed', reason: '', evidence: [{ check: 'sample plan', result: 'recorded' }], actors: {} }
+  raw.phases.implement = { status: 'running', reason: '', evidence: [], actors: {} };raw.revision += 1
+  await clock.advance(2000)
+  expect(JSON.stringify(await ui.find({ key: 'phase-plan' }))).toMatch('"bold":true')
+  expect(JSON.stringify(await ui.find({ key: 'connector-plan' }))).toMatch('"bold":true')
+  await clock.advance(250)
+  expect(JSON.stringify(await ui.find({ key: 'phase-plan' }))).not.toMatch('"bold":true')
+  await clock.advance(2000)
+  expect(JSON.stringify(await ui.find({ key: 'phase-plan' }))).not.toMatch('"bold":true')
+  await $.command.run({ command: 'aikya-flow', args: 'still' })
+  raw.phases.implement = { status: 'blocked', reason: 'Fixture dependency', evidence: [], actors: {} };raw.revision += 1
+  await clock.advance(2000)
+  expect((await ui.find({ key: 'phase-implement' })).text).toMatch('Blocked')
+  expect(JSON.stringify(await ui.find({ key: 'phase-implement' }))).not.toMatch('"bold":true')
+  await ui.unmount()
+})
+
+test('an unreadable execution cancels a confirmation instead of highlighting No evidence', async ($, on) => {
+  const path = '/cache/' + identity
+  const raw = rawSnapshot();raw.phases.plan = { status: 'running', reason: '', evidence: [], actors: {} }
+  const { clock, files } = engine(on, { files: { [path + '/active.json']: { run_id: 'r1' }, [path + '/r1.json']: raw } })
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-flow', args: 'connect /cache' })
+  const ui = await $.ui.mount(pane)
+  raw.phases.plan = { status: 'completed', reason: '', evidence: [{ check: 'sample plan', result: 'recorded' }], actors: {} };raw.revision += 1
+  await clock.advance(2000)
+  expect(JSON.stringify(await ui.find({ key: 'phase-plan' }))).toMatch('"bold":true')
+  delete files[path + '/r1.json']
+  await $.command.run({ command: 'aikya-flow', args: 'status' })
+  const phase = await ui.find({ key: 'phase-plan' })
+  expect(phase.text).toMatch('No evidence')
+  expect(JSON.stringify(phase)).not.toMatch('"bold":true')
   await ui.unmount()
 })

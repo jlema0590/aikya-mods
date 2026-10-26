@@ -1,6 +1,6 @@
 {
   "name": "aikya-flow",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Command activity and evidence-backed Aikya workflow states in a native pane.",
   "author": {
     "name": "Aikya"

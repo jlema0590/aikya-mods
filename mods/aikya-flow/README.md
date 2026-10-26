@@ -37,11 +37,25 @@ When started with `claude` in an IDE's integrated terminal, Flow uses Claude's t
 /aikya-flow show
 /aikya-flow hide
 /aikya-flow status
+/aikya-flow still
+/aikya-flow motion
 /aikya-flow connect /absolute/path/to/execution-cache
 /aikya-flow disconnect
 ```
 
 `status` prints details locally without calling a model. `hide` closes the shared Flow pane; `/aikya-boxbot hide` hides only the conveyor section.
+
+## Phase diagram and motion
+
+Flow 0.1.2 shows Explore, Plan, Implement, Validate, Security and Review as rounded cards with arrows. A card contains the phase name and its state. Panels with at least 32 usable columns and 45 usable rows use cards; smaller, unmeasured or inline panels use a compact diagram. The layout keeps the existing shared frame and bottom BoxBot section. Very small panes still use Claude's native scrolling.
+
+State colors are gray for No evidence/Pending/Not applicable, cyan for Running, green for Completed, amber for Waiting/Blocked/Interrupted, and red for Failed. Native theme colors and visible state labels keep the diagram readable without color. The running symbol rotates every 250 ms. A confirmed completion/failure/block or handoff receives one 250 ms emphasis; first loads and duplicate reads do not replay confirmations. Cards stay fixed.
+
+`still` disables visual movement while readings continue updating; `motion` resumes current movement without replaying past changes. Both commands are local and add no on-screen controls. Animation and the existing two-second periodic cache reads share one coordinated timer. Closing or hiding the pane stops its scheduled work.
+
+The idle task placeholder and normal turn-ended activity banner are omitted. The header still shows current commands and relevant native activity, plus the evidence source. One applicable reason is shown compactly; `/aikya-flow status` includes every phase reason.
+
+To update an existing installation after these changes are available, use `/plugin` → Marketplaces → aikya-mods → Update marketplace, or `claude plugin marketplace update aikya-mods` followed by `claude plugin update aikya-flow@aikya-mods` in your terminal. Restart after shell updates. See the [complete update guide](../../README.md#update-installed-mods).
 
 ## Activity and evidence
 

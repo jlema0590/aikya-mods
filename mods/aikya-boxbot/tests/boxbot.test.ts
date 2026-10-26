@@ -211,3 +211,13 @@ test('BoxBot fills an empty Flow footer whose children are omitted by the host',
   expect(JSON.stringify(footer)).toMatch('AIKYA BOXBOT')
   await ui.unmount()
 })
+
+test('the conveyor is visible without a decorative disclaimer in its pane', async ($, on) => {
+  engineStubs(on)
+  mock.clock(on)
+  await $.command.run({ command: 'aikya-boxbot', args: 'still' })
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal' })
+  expect(await ui.find({ type: 'Code' })).toBeDefined()
+  expect(JSON.stringify(await ui.drawn())).not.toMatch('Decorative animation. No task progress is measured.')
+  await ui.unmount()
+})

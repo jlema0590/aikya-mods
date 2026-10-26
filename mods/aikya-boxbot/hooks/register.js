@@ -94,7 +94,6 @@ export function register(on) {
       Text({ key: 'title', bold: true, children: ['AIKYA BOXBOT'] }),
       Text({ key: 'activity', children: [status] }),
       artwork,
-      Text({ dimColor: true, children: ['Decorative animation. No task progress is measured.'] }),
     ] });
     if (shared) {
       // Flow owns the full-height frame. Fill its footer when it rendered first;

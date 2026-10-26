@@ -64,6 +64,8 @@ You can also use:
 
 `still` displays stationary boxes on the conveyor belt. It is the native mod's manual reduced-motion option. The browser preview additionally honors `prefers-reduced-motion`; the mod does not claim to detect an operating-system preference that its API does not expose.
 
+BoxBot 0.3.2 keeps only its title, playback state and conveyor in the pane; the decorative-animation disclaimer is documented here instead of repeated on screen. Its motion still does not measure task progress. Update from `/plugin` → Marketplaces → aikya-mods → Update marketplace, or refresh the marketplace and run `claude plugin update aikya-boxbot@aikya-mods` in your terminal, then restart. See the [update guide](../../README.md#update-installed-mods).
+
 ## Rendering and access
 
 Desktop and VS Code use the native `Svg` element. The terminal uses a seven-row monospace drawing that fits the pane width. Three boxes travel at a constant speed in an eight-second loop sampled at eight frames per second. Boxes enter at the left edge and leave at the right edge; the belt and rollers move with them. The animation timer is cancelled while paused, in still mode, and when hidden. No model request, tool call, subprocess, network request, credential lookup, file read/write, or telemetry call is made by the mod.

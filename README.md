@@ -2,7 +2,7 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
-Bundle version: **0.0.13**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+Bundle version: **0.0.14**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
 | Mod | Status | Purpose |
 | --- | --- | --- |
@@ -209,6 +209,36 @@ bash /path/to/aikya-mods/install.sh aikya-boxbot --scope project
 
 `--dry-run` prints the exact commands and changes nothing. The install process stops on CLI errors. It does not roll back marketplace registration or earlier successful installations if a later installation fails; rerun after resolving the reported error.
 
+## Update installed mods
+
+These changes must reach the branch used by your marketplace before a normal update can download them. The prepared versions are Flow 0.1.2, BoxBot 0.3.2 and Usage 0.1.1 (bundle 0.0.14).
+
+Inside Claude Code, run `/plugin`, open **Marketplaces**, choose **aikya-mods**, then **Update marketplace**. This updates the listing and the installed plugins from this repository. Alternatively open each mod on the **Installed** tab and select **Update now**. Apply the offered plugin reload, or exit and start Claude Code again.
+
+From a regular terminal on Windows, macOS or Linux:
+
+```sh
+claude plugin marketplace update aikya-mods
+claude plugin update aikya-flow@aikya-mods
+claude plugin update aikya-boxbot@aikya-mods
+claude plugin update aikya-usage@aikya-mods
+claude plugin list
+```
+
+Update only the mods you have installed. Restart Claude Code after shell updates and check the listed versions. If installed in more than one scope, use the relevant `--scope user`, `--scope project` or `--scope local` on each plugin update. Marketplace refresh alone is not a substitute for those explicit plugin updates from the shell.
+
+## Use Flow
+
+Flow shows six phases as rounded cards connected by arrows when the panel is tall enough. In a smaller panel it uses a compact diagram. Completed phases are green, active phases cyan, waits and interruptions amber, failures red, and unknown/pending/not-applicable phases gray. The running symbol changes every 250 ms; confirmed transitions receive one brief emphasis. Native activity does not count as phase evidence.
+
+```text
+/aikya-flow status
+/aikya-flow still
+/aikya-flow motion
+```
+
+Still mode freezes only visual effects; phase readings keep updating. Flow adds no buttons, keeps BoxBot below the diagram, omits the placeholder task label, and hides the normal turn-ended activity line.
+
 ## Use BoxBot
 
 ```text
@@ -271,7 +301,7 @@ python3 tests/integration_package.py
 python3 tests/integration_platforms.py
 python3 tests/integration_online_release.py
 python3 scripts/build_release.py --check
-python3 scripts/build_release.py --version v0.0.13 --output dist
+python3 scripts/build_release.py --version v0.0.14 --output dist
 ```
 
 Installer tests execute the real Bash and PowerShell scripts against isolated HTTP/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).
