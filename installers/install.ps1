@@ -39,7 +39,7 @@ function Save-Download([string]$Uri, [string]$Destination) {
 function Read-Manifest([string]$Path) {
     $data = @{}
     foreach ($line in [IO.File]::ReadAllLines($Path)) {
-        $parts = $line.Split(@('='), 2)
+        $parts = $line -split '=', 2
         if ($parts.Count -ne 2 -or $parts[0] -cnotin @('installer_schema', 'version', 'unix_archive', 'windows_archive') -or $data.ContainsKey($parts[0])) {
             throw 'Invalid or duplicate installer manifest entry.'
         }
