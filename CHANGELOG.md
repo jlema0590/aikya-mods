@@ -5,6 +5,23 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-10-26
+
+### Added
+
+- Separate ASCII usage bars for the five-hour and seven-day account windows, with each percentage after its bar on the existing single-line footer.
+- Independent theme-aware colors for consumed segments and percentages: success below 70%, warning from 70% to below 90%, and error at 90% or higher.
+
+### Changed
+
+- Shorten bars and labels as available space decreases, retaining a numeric fallback for extremely narrow terminals.
+- Distinguish unavailable readings with question-mark bars and N/A; keep actual zero readings, decimal percentages and over-limit values explicit.
+- Share plain-text and colored formatting without changing native metric sources or token accounting.
+
+### Included mods
+
+- Aikya BoxBot 0.3.1, Aikya Flow 0.1.1 and Aikya Usage 0.1.1.
+
 ## [0.0.12] - 2026-10-26
 
 ### Fixed

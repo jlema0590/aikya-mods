@@ -33,14 +33,27 @@ When `claude` runs in an IDE's integrated terminal, this line belongs to Claude'
 Example values:
 
 ```text
-Context: 42% | Tokens: 53k | Usage 5h/7d: 14%/28%
+Context: 42% | Tokens: 53k | Usage 5h [====------] 40% | 7d [========--] 80%
 ```
 
 - **Context** is the current context-window percentage reported by Claude Code.
 - **Tokens** are observed input, output, cache-read and cache-write tokens since the mod loaded. They include subagent requests. The mod does not read earlier transcripts or claim a lifetime/session-history total after a reload.
 - **Usage** is the account's five-hour and seven-day percent used, as reported by Claude Code. Missing or expired readings show `N/A`; they are never derived from token counts.
 
-Labels are abbreviated in narrow terminals. The detailed command preserves the full meaning of each value. The permanent footer uses the native `PromptHint` site where the host exposes it; the terminal is the target surface. Other interfaces can consult `/aikya-usage` for the same data.
+Each window has its own bar: `=` is used capacity and `-` is remaining capacity. Its percentage follows the bar. A ten-cell bar is approximate; the percentage retains the native reading rounded to at most one decimal. A value above 100% fills the bar without hiding the actual percentage.
+
+Consumed cells and their percentage use the theme's `success` color below 70%, `warning` from 70% to below 90%, and `error` at 90% or higher. In a typical dark theme these are green, yellow and red. The windows are colored independently. Brackets and labels stay neutral, remaining cells are dim, and N/A uses question-mark cells with an inactive color. The thresholds are visual cues, not account limits or task progress.
+
+Bars shorten from ten to five, two or one cell as space decreases, and labels are abbreviated in narrow terminals. A numeric fallback keeps the window labels and readings when bars cannot fit. The host can still clip the smallest format if the terminal is extremely narrow or other native footer content occupies the row. No additional row is added. Colors follow the user's theme and terminal color preferences; the mod does not force ANSI colors. The detailed command preserves the full meaning of each value. The permanent footer uses the native `PromptHint` site where the host exposes it; the terminal is the target surface. Other interfaces can consult `/aikya-usage` for the same data.
+
+## Update
+
+Once Usage 0.1.1 is available in the marketplace, update an existing installation and restart Claude Code:
+
+```sh
+claude plugin marketplace update aikya-mods
+claude plugin update aikya-usage@aikya-mods
+```
 
 ## Commands
 

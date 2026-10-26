@@ -23,7 +23,7 @@
       "name": "aikya-usage",
       "source": "./mods/aikya-usage",
       "description": "Context, observed tokens and account usage in one compact footer.",
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ]
 }

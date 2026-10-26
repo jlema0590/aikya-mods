@@ -2,7 +2,7 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
-Bundle version: **0.0.12**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+Bundle version: **0.0.13**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
 | Mod | Status | Purpose |
 | --- | --- | --- |
@@ -237,6 +237,25 @@ claude plugin update aikya-flow@aikya-mods
 
 Update Flow only if it is installed. The animation is decorative and does not measure task progress, tool success, or token usage.
 
+## Use Usage
+
+Usage 0.1.1 keeps Context, Tokens and both account windows on one bottom line. Example values:
+
+```text
+Context: 42% | Tokens: 53k | Usage 5h [====------] 40% | 7d [========--] 80%
+```
+
+Each consumed segment (`=`) and its percentage use the theme's success color below 70%, warning color from 70% to below 90%, and error color at 90% or higher. Remaining cells (`-`) are dim. These are visual thresholds, not new account limits. Missing or expired readings show question-mark cells and N/A.
+
+The footer shortens its bars and labels as space decreases, then uses a numeric fallback when bars cannot fit. It adds no rows or side panels. Use `/aikya-usage` for the full local report. Terminals without colors retain the same readable text.
+
+After this version is available in the marketplace, update and restart Claude Code:
+
+```sh
+claude plugin marketplace update aikya-mods
+claude plugin update aikya-usage@aikya-mods
+```
+
 ## Verify
 
 ```sh
@@ -252,7 +271,7 @@ python3 tests/integration_package.py
 python3 tests/integration_platforms.py
 python3 tests/integration_online_release.py
 python3 scripts/build_release.py --check
-python3 scripts/build_release.py --version v0.0.12 --output dist
+python3 scripts/build_release.py --version v0.0.13 --output dist
 ```
 
 Installer tests execute the real Bash and PowerShell scripts against isolated HTTP/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).
