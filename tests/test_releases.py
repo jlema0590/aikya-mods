@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import unittest
 import zipfile
 from release_fixture import release_fixture
@@ -57,6 +58,26 @@ class ReleaseTests(unittest.TestCase):
         for line in sums:
             digest, filename = line.split('  ', 1)
             self.assertEqual(hashlib.sha256((output / filename).read_bytes()).hexdigest(), digest)
+
+    def test_os_installers_and_tar_share_a_verified_release_contract(self):
+        result = self.build()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        dist = self.base / 'dist'
+        expected = {'install-linux.sh', 'install-macos.sh', 'install-windows.ps1',
+                    'installer-manifest.txt', 'aikya-mods-v1.2.3.tar.gz'}
+        self.assertTrue(expected <= {p.name for p in dist.iterdir()})
+        metadata = json.loads((dist / 'release.json').read_text())
+        self.assertEqual(metadata['installer_schema'], 1)
+        self.assertEqual(metadata['archives'], {'unix': 'aikya-mods-v1.2.3.tar.gz', 'windows': 'aikya-mods-v1.2.3.zip'})
+        self.assertEqual(metadata['installers'], {'linux': 'install-linux.sh', 'macos': 'install-macos.sh', 'windows': 'install-windows.ps1'})
+        self.assertEqual((dist / 'installer-manifest.txt').read_text(),
+                         'installer_schema=1\nversion=v1.2.3\nunix_archive=aikya-mods-v1.2.3.tar.gz\nwindows_archive=aikya-mods-v1.2.3.zip\n')
+        with zipfile.ZipFile(dist / 'aikya-mods-v1.2.3.zip') as archive:
+            zipped = {name: archive.read(name) for name in archive.namelist()}
+        with tarfile.open(dist / 'aikya-mods-v1.2.3.tar.gz') as archive:
+            self.assertTrue(all(member.isfile() for member in archive.getmembers()))
+            tarred = {member.name: archive.extractfile(member).read() for member in archive.getmembers()}
+        self.assertEqual(zipped, tarred)
 
     def test_rebuilding_produces_identical_bytes(self):
         for output in ('one', 'two'):

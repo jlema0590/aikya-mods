@@ -1,104 +1,119 @@
-# Validation, releases and online installation
+# Distribution and releases
 
-## Distribution requirements
+## Install without cloning
 
-- The public repository is `jlema0590/aikya-mods`; the default branch is `main`.
-- Installers must work from a URL without an existing checkout: Bash 3.2+ on Linux/macOS, PowerShell 5.1+ on Windows. Git and Claude Code must already be on PATH.
-- Online installation defaults to all three released mods and user scope. Selection, duplicate removal, user/project/local scope, listing, help and dry-run are supported. Invalid selections must fail before downloads or configuration changes.
-- Keep the checkout in a persistent user directory. Default source is `main`; an explicit `vMAJOR.MINOR.PATCH` installs a release tag. Preserve the caller's working directory for project/local scope. Never reset or overwrite local changes to a cached checkout.
-- An existing checkout can be supplied explicitly for source installation. That route skips the installer's download and Git operations.
-- Pull requests and branch pushes validate installers, package construction, Claude manifests and native mod tests. Windows validates the PowerShell path.
-- Releases use stable `vMAJOR.MINOR.PATCH` tags; individual mod versions remain independent and must match the marketplace catalog. Run the same checks on the exact tagged commit before publishing.
-- VERSION is the bundle version, starting at `0.0.10`. The tag must match it, and CHANGELOG.md must contain exactly one non-empty dated entry for that version. Packaging rejects inconsistent inputs before writing output.
-- Release files include a complete source ZIP, an individual ZIP for each mod, both online installers, release metadata and SHA256 sums. Do not include credentials, generated types, Git internals or temporary output.
-- Build the full release in a temporary draft, upload every asset, then publish. Never overwrite an already published release. Failed draft uploads may be retried.
-- No workflow or real release is published by editing these files locally. They take effect after the changes are pushed to GitHub.
+Starting with bundle **0.0.11**, the release provides one standalone installer per OS:
 
-## Online installers
+| OS | Release asset | Package | Installer runtime |
+| --- | --- | --- | --- |
+| Windows | `install-windows.ps1` | ZIP | PowerShell 5.1 or 7 |
+| macOS | `install-macos.sh` | TAR.GZ | Bash 3.2+ |
+| Linux | `install-linux.sh` | TAR.GZ | Bash 3.2+ |
 
-Linux and macOS share [installers/install.sh](../installers/install.sh). Windows uses [installers/install.ps1](../installers/install.ps1). The README contains the public curl commands. Claude Code and Git must already be installed; these scripts install the mods, without changing shell profiles or installing Claude itself.
+Use the separate one-command instructions in the [README](../README.md#install-without-cloning). The new URLs become usable when v0.0.11 is published; v0.0.10's files remain unchanged. Git, Python and Node.js are not needed by these installers. Claude Code must already be available as `claude` on PATH. The scripts do not install Claude or change shell profiles, and need no administrator permissions.
 
-Bash options:
+macOS uses curl, tar, gzip, awk, shasum and diff. Linux uses curl or wget, tar, gzip, awk, sha256sum and diff. Windows uses PowerShell/.NET download, hashing and ZIP APIs, without Bash. Missing tools are reported before downloading the package; dependencies are not installed automatically.
+
+## Selection and scope
+
+In an interactive terminal, press Enter for **Flow + Usage (recommended)**, select all mods, choose individual mods, or cancel. Invalid menu input is requested again. Explicit mod names or the all option skip the menu. With redirected input and no selection, all available mods install without prompting.
+
+After downloading your OS installer:
 
 ```sh
-bash installers/install.sh --list
-bash installers/install.sh aikya-flow aikya-usage --scope project
-bash installers/install.sh --all --version v1.2.3 --dry-run
-bash installers/install.sh --source /path/to/checkout --all
+# Replace install-linux.sh with install-macos.sh on macOS.
+bash install-linux.sh aikya-flow aikya-usage --scope user
+bash install-linux.sh aikya-flow --version v0.0.11
+bash install-linux.sh --all --dry-run
+bash install-linux.sh --list
 ```
-
-PowerShell options:
 
 ```powershell
-& .\installers\install.ps1 -List
-& .\installers\install.ps1 -Mods aikya-flow,aikya-usage -Scope project
-& .\installers\install.ps1 -All -Version v1.2.3 -DryRun
-& .\installers\install.ps1 -Source C:\path\to\checkout -All
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -Mods aikya-flow,aikya-usage -Scope user
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -Mods aikya-flow -Version v0.0.11
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -All -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -List
 ```
 
-Run project/local installation from the target project's directory. The installer keeps that working directory while registering the marketplace. Without explicit names, all released mods are selected. Selection and scope are checked before network or configuration changes; `--dry-run` / `-DryRun` does not create a cache or call Git/Claude.
+`user` is the default. For `project` or `local`, run from the target project's directory. The installer preserves that working directory. Invalid selections fail before downloads or configuration changes. Listing, help and dry-run do not access the network, create directories or invoke Claude. Dry-run shows `latest stable` without resolving it.
 
-The persistent cache contains one checkout per ref: `main` or the requested stable version tag. Re-running fetches that ref and checks it out without a forced reset. Unexpected origins and tracked/staged local changes stop the update. Existing untracked files are left to Git's normal checkout collision checks. Keep the checkout while installed; Claude loads the local marketplace from it. To use another version, rerun with the version option: Claude updates the marketplace source. A failure does not roll back earlier successful CLI operations.
+Restart Claude Code after installation. A user-scoped install is shared by IDE terminals using the same user, runtime and Claude configuration; WSL, SSH, containers and other `CLAUDE_CONFIG_DIR` values are separate environments. See [terminal compatibility](terminal-compatibility.md).
 
-An interrupted clone may leave an incomplete cache entry. Inspect and move that specific entry aside before retrying; the installer never deletes an existing directory to recover automatically.
+## Releases and persistent files
 
-## Release files
+The default source is the latest published stable release, never `main`, a draft or a prerelease. The installer reads `installer-manifest.txt` from latest once, validates its stable tag, and retrieves the manifest, checksums and package from that exact tag. Pinned versions require v0.0.11 or later. Earlier releases can still be installed from an extracted complete bundle through the local source option.
 
-For a tag such as `v1.2.3`, the workflow produces eight assets:
+The manifest contains four strict `key=value` lines: `installer_schema`, `version`, `unix_archive`, `windows_archive`. Unknown keys, duplicates and unexpected filenames are rejected. It is parsed as data, never sourced or evaluated. The manifest and archive hashes must match SHA256SUMS. The installer rejects unsafe archive paths, links, special files and duplicate entries before extraction, checks VERSION, then uses Claude's strict validation before configuration changes.
 
-- `aikya-mods-v1.2.3.zip`: complete installable checkout under `aikya-mods/`.
-- One ZIP per mod, named with that mod's own version, such as `aikya-flow-0.1.0.zip`.
-- `install.sh` and `install.ps1`: standalone online installers.
-- `release.json`: bundle version, tested Claude version, mod versions and that version's changelog notes.
-- `SHA256SUMS`: SHA256 for the other seven files.
+| OS | Retained marketplace source |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\Aikya\Mods\releases\vX.Y.Z\aikya-mods` |
+| macOS | `~/Library/Application Support/Aikya/Mods/releases/vX.Y.Z/aikya-mods` |
+| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/aikya-mods/releases/vX.Y.Z/aikya-mods` |
 
-After the first release is published, its installers are also downloadable through `https://github.com/jlema0590/aikya-mods/releases/latest/download/install.sh` and the corresponding `install.ps1` URL. Downloading an installer from a release pins the installer file; the installed code still defaults to `main` unless a version option is supplied.
+`AIKYA_MODS_HOME` replaces the data root. Keep the retained source: Claude loads its marketplace from that directory. Downloads and extraction use a staging directory inside the data root; the verified bundle is moved into its version directory before registering it. Existing older Git checkouts are neither converted nor deleted.
 
-To install the complete ZIP without cloning, extract it and retain that folder. On Linux/macOS run `bash /path/to/aikya-mods/install.sh --all`. On Windows run `& C:\path\to\aikya-mods\installers\install.ps1 -Source C:\path\to\aikya-mods -All`. Individual ZIPs can be loaded for one session with `claude --plugin-dir /path/to/aikya-flow-0.1.0.zip`; their `install.sh` wrappers target the complete marketplace checkout.
+Reinstalling a version compares the extracted files with the retained copy. Identical files are reused; local changes and foreign directories stop installation instead of being overwritten. Installing a newer version retains the previous directory and registers the new source with Claude. The scripts do not remove old releases automatically.
 
-Verify downloads before extracting:
+A `.install-lock` blocks simultaneous installations using the same data root. Normal failures release the lock and remove staging files. If a process is forcibly terminated, inspect its lock and staging directory before removing them; never remove another running installer's lock.
+
+Download or integrity failure does not change Claude configuration. A later Claude CLI failure can leave earlier operations in place. The installer returns failure, keeps verified sources that may already be referenced, and does not claim completion. Resolve the reported problem and rerun. Re-registering an older retained source is possible through `--source` / `-Source`; this does not promise a complete rollback of plugin configuration.
+
+## Existing source and offline installation
+
+The source option skips release resolution and downloads. Retain the complete extracted bundle:
 
 ```sh
-sha256sum -c SHA256SUMS
-# macOS:
-shasum -a 256 -c SHA256SUMS
+bash /path/to/aikya-mods/installers/install.sh --source /path/to/aikya-mods aikya-flow aikya-usage
 ```
 
-Windows can inspect each file with `Get-FileHash -Algorithm SHA256` and compare it with `SHA256SUMS`.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\path\to\aikya-mods\installers\install.ps1 -Source C:\path\to\aikya-mods -Mods aikya-flow,aikya-usage
+```
+
+The root `install.sh` and the per-mod local wrappers are unchanged. The online release assets `install.sh` and `install.ps1` remain compatible aliases of the new engines. An individual mod ZIP can be loaded for one session through Claude's plugin-dir option; its local shell wrapper expects the complete marketplace bundle.
+
+## Release assets
+
+For three released mods, a tag such as `v0.0.11` produces thirteen assets:
+
+- `aikya-mods-v0.0.11.zip` and `aikya-mods-v0.0.11.tar.gz`: identical installable files under `aikya-mods/`.
+- One ZIP for each mod, named with its independent mod version.
+- `install-linux.sh`, `install-macos.sh`, `install-windows.ps1` and compatible `install.sh` / `install.ps1` aliases.
+- `installer-manifest.txt`: installer schema, tag and archive names.
+- `release.json`: tag, tested Claude version, mod versions, changelog notes and installer contract.
+- `SHA256SUMS`: SHA-256 for every other asset.
+
+Unix platform scripts are generated from one Bash engine, with a platform guard; the Windows asset comes from the PowerShell engine. Archives are reproducible and exclude Git internals, credentials and generated temporary files. The publisher validates the exact allowed inventory, metadata and hashes before contacting GitHub.
 
 ## Creating a release
 
-1. Update `VERSION` and add a dated `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` entry to `CHANGELOG.md`, with non-empty English release notes. The first bundle is `0.0.10`. Keep unfinished changes under `[Unreleased]`. Individual mod versions only change when their code changes; each version must match its marketplace entry.
-2. Push `featuree/install-IDE` to rehearse the release. The Release workflow validates VERSION/changelog and the exact commit on Linux, macOS and Windows, builds the assets, uploads/downloads them as an Actions artifact and verifies the downloaded files. Its publishing job is skipped for branch pushes. After review, merge into `main`.
-3. Create and push the matching tag on the intended commit:
+1. Update VERSION and the README bundle version; add exactly one non-empty dated `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` entry to CHANGELOG.md in English. Keep unfinished changes under Unreleased. Mod versions change only when their own code changes and must match the marketplace catalog.
+2. Push `feature/installers-no-clone` or `develop` for a release rehearsal. Branch runs validate and package without publishing. Review the Linux/macOS/Windows matrix, including PowerShell 5.1 and 7 on Windows and the final generated installers.
+3. On the intended reviewed commit, create and push the matching tag. For this change the proposed next tag is `v0.0.11`; do not move `v0.0.10` or replace its assets.
+4. The tag workflow checks VERSION/changelog and validates the exact tag commit. It builds all assets, uploads/downloads them as an Actions artifact and verifies the artifact round trip before publication.
+5. Only the publish job requests `contents: write`. It checks that the tag still points at the validated commit, creates or resumes a draft, uploads every asset and verifies the inventory, sizes and GitHub SHA-256 digests before publishing. Drafts are retrieved by numeric release ID, since a tag lookup may not return a draft.
+6. A failed publication leaves a draft. Dispatch the workflow for the same tag with `dry_run=false` to resume; manual runs default to `dry_run=true`. Published releases and drafts for another commit are preserved. Older releases do not replace newer stable releases as latest.
 
-   ```sh
-   git tag -a v0.0.10 -m "Aikya Mods v0.0.10"
-   git push origin v0.0.10
-   ```
+Publication uses helper scripts from the immutable workflow revision while the packaged source and tag checks remain pinned to the validated tag commit. The helper suite is tested before publication. This allows a corrected workflow to resume a draft without moving an existing tag.
 
-4. The tag run resolves the tag to a commit, requires the same VERSION and changelog entry, and calls the reusable Validation workflow for that exact SHA. Validation runs with Claude Code pinned in `.claude-version`: unit tests, strict manifest checks, native mod tests, real installation, ZIP installation and scope/path checks. Windows checks PowerShell 5.1 and 7.
-5. The package job builds and verifies the artifact round trip. Only the publish job requests `contents: write`. It downloads those assets, checks that the tag still points at the validated commit, and creates a draft whose notes come from the changelog. Every release asset must match the inventory, size and GitHub SHA256 digest before publication.
-6. A failed upload or verification leaves a draft. Run the workflow manually with the same existing tag and `dry_run=false` to resume publication. Manual runs default to `dry_run=true`, which validates and packages without changing GitHub Releases. Published releases and drafts for another commit are left unchanged. An older bundle does not replace a newer release as `latest`.
-
-Tests use temporary Claude configurations and do not need model credentials. Tag creation/publication is separate from the branch rehearsal. The local test suite does not create a tag or a release.
-
-Local verification:
+## Validation
 
 ```sh
 python3 -m unittest discover -s tests -v
 python3 tests/integration_install.py
 python3 tests/integration_package.py
 python3 tests/integration_platforms.py
-python3 scripts/build_release.py --check --version v0.0.10
+python3 tests/integration_online_release.py
+python3 scripts/build_release.py --check --version v0.0.11
 python3 scripts/build_release.py --output dist
-python3 scripts/publish_release.py --repo jlema0590/aikya-mods --tag v0.0.10 --sha "$(git rev-parse HEAD)" --assets dist --dry-run
+python3 scripts/publish_release.py --repo jlema0590/aikya-mods --tag v0.0.11 --sha "$(git rev-parse HEAD)" --assets dist --dry-run
 ```
 
-The build output must be empty. The publisher's tests simulate GitHub at the CLI boundary; the build and installation tests use real files and real Claude installs. A GitHub-hosted workflow run is only validated once these files have been pushed and Actions has executed them.
+The output directory must be empty. Tests use isolated Claude configurations, never the user's settings, and need no model credentials. The online integration serves fixture releases over loopback HTTP through test-only transport adapters; production installers retain fixed HTTPS endpoints. It executes the generated OS assets with real Claude, checks first/repeated installation, version changes, corruption recovery, every scope and paths with spaces/Unicode. Git invocations during installation fail the test. Test infrastructure can use Python and Node; the installer itself does not require them.
 
-The earlier 2026-10-25 validation covered 48 Python tests and 39 native tests locally. The subsequent platform audit found two Windows-only Flow fixture failures, corrected in the 0.0.10 preparation. Current verification evidence is recorded in [Windows and release validation](../aikya/docs/research/2026-10-25-windows-release-validation.md).
+A CI runner validates its native OS, not every Linux distribution or graphical IDE. Tag creation and publication are separate from branch validation. Updating VERSION and these files does not publish a release.
 
-References: [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows), [GitHub release assets](https://docs.github.com/en/rest/releases/assets), [Claude mod testing](https://code.claude.com/docs/en/plugins/mods/test).
+References: [GitHub release assets](https://docs.github.com/en/rest/releases/assets), [Claude marketplaces](https://code.claude.com/docs/en/plugin-marketplaces).
 
 GENERATED BY AIKYA HARNESS

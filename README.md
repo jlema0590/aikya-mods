@@ -2,7 +2,7 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
-Bundle version: **0.0.10**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+Bundle version: **0.0.11**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
 | Mod | Status | Purpose |
 | --- | --- | --- |
@@ -16,37 +16,85 @@ Flow works without a semantic bridge and marks phases **No evidence** until conn
 
 ## Requirements
 
-- Linux/macOS with Bash 3.2+, or Windows with PowerShell 5.1+.
-- Git on PATH for online installation; an existing checkout can be used with `--source` / `-Source`.
-- Claude Code with mods support, available as `claude` on PATH. The mods are tested with Claude Code **2.1.308**.
-- Access to this GitHub repository when cloning or installing directly from GitHub.
+- Claude Code with mods support, available as `claude` on PATH. Tested with **2.1.308**.
+- Windows: PowerShell 5.1 or 7. No Bash required.
+- macOS: Bash 3.2+, curl, tar, gzip, shasum and diff.
+- Linux: Bash 3.2+, curl or wget, tar, gzip, sha256sum, awk and diff.
+- HTTPS access to GitHub Releases. No Git, Python, Node.js or administrator permissions are needed by the mod installers.
 
-## Install with one command
+## Install without cloning
 
-Linux and macOS:
+The following installers are available starting with **v0.0.11**. If you are reading this branch before that release is published, its new download URLs are not available yet. The published v0.0.10 installers keep their original behavior.
+
+Copy the command for your operating system into its terminal. It downloads a temporary installer, opens the selection menu, and removes the temporary script afterward. The verified mod files remain in your user data directory.
+
+### macOS
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jlema0590/aikya-mods/main/installers/install.sh | bash
+( aikya_setup=$(mktemp) && trap 'rm -f "$aikya_setup"' EXIT && curl -fsSL https://github.com/jlema0590/aikya-mods/releases/latest/download/install-macos.sh -o "$aikya_setup" && bash "$aikya_setup" )
 ```
 
-Windows, from PowerShell:
+### Linux
+
+```sh
+( aikya_setup=$(mktemp) && trap 'rm -f "$aikya_setup"' EXIT && curl -fsSL https://github.com/jlema0590/aikya-mods/releases/latest/download/install-linux.sh -o "$aikya_setup" && bash "$aikya_setup" )
+```
+
+If curl is unavailable, download `install-linux.sh` from the release page with your browser or wget, then run `bash install-linux.sh`.
+
+### Windows
+
+Run this in PowerShell:
 
 ```powershell
-$p = Join-Path $env:TEMP 'aikya-mods-install.ps1'; curl.exe -fsSL https://raw.githubusercontent.com/jlema0590/aikya-mods/main/installers/install.ps1 -o $p; if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }; & $p
+& { $aikyaSetup = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName() + '.ps1'); try { Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -Uri 'https://github.com/jlema0590/aikya-mods/releases/latest/download/install-windows.ps1' -OutFile $aikyaSetup; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $aikyaSetup; if ($LASTEXITCODE -ne 0) { throw 'Installation failed. Review the error above.' } } finally { if (Test-Path -LiteralPath $aikyaSetup) { Remove-Item -LiteralPath $aikyaSetup -Force } } }
 ```
 
-These commands install all three mods for the current Claude user configuration, without an interactive menu. They retain a checkout under `~/.local/share/aikya-mods/main` on Linux/macOS (or `$XDG_DATA_HOME`), and `%LOCALAPPDATA%\Aikya\Mods\main` on Windows. Keep that directory: it is the marketplace source. Set `AIKYA_MODS_HOME` to choose another persistent location.
+The execution-policy option applies only to that process; it does not change your saved PowerShell policy. If your organization blocks script execution, use its approved installation method.
 
-Choose mods, inspect commands, or select a release tag:
+### Choose your mods
+
+```text
+Aikya Mods Installer
+
+1. Flow + Usage (recommended)
+2. All mods
+3. Choose mods
+Q. Cancel
+
+Choose an option [1]:
+```
+
+Press Enter for Flow + Usage, choose all mods, or select Flow, Usage and BoxBot independently. Installation uses Claude's `user` scope by default. Restart Claude Code after installation.
+
+For unattended or version-pinned installation, download your OS installer from the release page and run it with explicit options:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jlema0590/aikya-mods/main/installers/install.sh | bash -s -- aikya-flow aikya-usage --scope user
-curl -fsSL https://raw.githubusercontent.com/jlema0590/aikya-mods/main/installers/install.sh | bash -s -- --version v1.2.3 --dry-run
+# Linux; use install-macos.sh on macOS.
+bash install-linux.sh aikya-flow aikya-usage --scope user
+bash install-linux.sh aikya-flow --version v0.0.11
+bash install-linux.sh aikya-usage --dry-run
+bash install-linux.sh --all
 ```
 
-`v1.2.3` is an example: use an existing release tag. After downloading the Windows script, the equivalents are `& $p -Mods aikya-flow,aikya-usage -Scope user` and `& $p -Version v1.2.3 -DryRun`.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -Mods aikya-flow,aikya-usage -Scope user
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -Mods aikya-flow -Version v0.0.11
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -Mods aikya-usage -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -All
+```
 
-The default source is `main`; use a version option to pin the installed code. Restart Claude Code after installation. See [distribution and releases](docs/distribution.md) for cache updates, release assets and offline installation. These URLs become available after the installer files are merged into `main`.
+With redirected input and no selection, all three mods install without a menu. `--dry-run` / `-DryRun` makes no network requests or changes. `--list` / `-List` shows the available mods.
+
+The default source is the latest stable release, resolved once per installation. Keep its persistent directory: Claude loads the marketplace from it. Set `AIKYA_MODS_HOME` to choose another data directory.
+
+| OS | Default retained source |
+| --- | --- |
+| macOS | `~/Library/Application Support/Aikya/Mods/releases/vX.Y.Z/aikya-mods` |
+| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/aikya-mods/releases/vX.Y.Z/aikya-mods` |
+| Windows | `%LOCALAPPDATA%\Aikya\Mods\releases\vX.Y.Z\aikya-mods` |
+
+See [distribution and releases](docs/distribution.md) for updates, checksums, local/offline installation and recovery after a partial installation.
 
 ## Choose mods to install
 
@@ -55,17 +103,16 @@ The default source is `main`; use a version option to pin the installed code. Re
 These mods run in Claude Code started from the integrated terminal of Cursor, Trae or an IntelliJ Platform IDE. Install them for the Claude user configuration once, then open a new terminal in your project and run `claude`:
 
 ```sh
-bash /path/to/aikya-mods/install.sh --all --scope user
+# Install once using the OS command above, then:
 cd /path/to/your/project
 claude
 ```
 
 This shares the plugins across terminals using the same user, runtime and Claude configuration. SSH, containers, WSL and a different `CLAUDE_CONFIG_DIR` are separate environments. Flow and BoxBot appear inside Claude's terminal UI; Usage appears below its prompt. For a side panel, maximize the terminal area and use Claude's fullscreen renderer, for example `CLAUDE_CODE_NO_FLICKER=1 claude`.
 
-In Windows PowerShell, install from a retained checkout and start fullscreen with:
+In Windows PowerShell, after installation, start fullscreen with:
 
 ```powershell
-& C:\path\to\aikya-mods\installers\install.ps1 -Source C:\path\to\aikya-mods -All -Scope user
 $env:CLAUDE_CODE_NO_FLICKER = '1'
 claude
 ```
@@ -119,7 +166,7 @@ From a Claude Code session:
 /plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
 ```
 
-Both hosted routes require access to the repository. The local checkout scripts use the source already on disk; the online scripts above retrieve their own persistent checkout.
+Both hosted routes require access to the repository. The local checkout scripts use the source already on disk; the online scripts above download a verified release package without cloning.
 
 ## Options and scope
 
@@ -171,13 +218,14 @@ done
 python3 tests/integration_install.py
 python3 tests/integration_package.py
 python3 tests/integration_platforms.py
+python3 tests/integration_online_release.py
 python3 scripts/build_release.py --check
-python3 scripts/build_release.py --version v0.0.10 --output dist
+python3 scripts/build_release.py --version v0.0.11 --output dist
 ```
 
-Installer tests execute the real Bash and PowerShell scripts against isolated Git/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).
+Installer tests execute the real Bash and PowerShell scripts against isolated HTTP/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).
 
-The [release workflow](.github/workflows/release.yml) rehearses the full validation and packaging path on pushes to `featuree/install-IDE`, without publishing. Stable `vMAJOR.MINOR.PATCH` tag pushes publish after all checks pass; manual runs default to dry-run for an existing tag. The tag must match VERSION and a dated changelog entry. The workflow validates the exact commit on all three operating systems, builds eight assets, verifies their artifact round trip, then uses those same files for draft publication. Release notes come from the changelog. See the [release procedure](docs/distribution.md#creating-a-release).
+The [release workflow](.github/workflows/release.yml) rehearses the full validation and packaging path on pushes to `feature/installers-no-clone` and `develop`, without publishing. Stable `vMAJOR.MINOR.PATCH` tag pushes publish after all checks pass; manual runs default to dry-run for an existing tag. The tag must match VERSION and a dated changelog entry. The workflow validates the exact commit on all three operating systems, builds thirteen assets, verifies their artifact round trip, then uses those same files for draft publication. Release notes come from the changelog. See the [release procedure](docs/distribution.md#creating-a-release).
 
 Official references: [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), [mods](https://code.claude.com/docs/en/plugins/mods/reference).
 

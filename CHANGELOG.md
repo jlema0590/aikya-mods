@@ -5,6 +5,32 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-10-26
+
+### Added
+
+- Dedicated Linux, macOS and Windows release installers, with no repository clone or Git dependency.
+- An English terminal menu with Flow + Usage recommended, all mods, or individual selection.
+- Reproducible TAR.GZ bundles, OS-specific installer assets and a versioned installer manifest with SHA-256 verification.
+- Release-download tests for integrity failures, unsafe archive entries, persistent sources, installation locks and repeated installation.
+
+### Changed
+
+- Online installation now downloads the latest stable release by default; explicit release versions start at v0.0.11.
+- Retain extracted marketplace sources in per-version user directories; preserve older Git checkouts and refuse to overwrite local changes.
+- Document separate installation commands for Windows, macOS and Linux, including unattended selection and pinned versions.
+
+### Fixed
+
+- Repeated Windows installation compares provider-relative paths, including temporary directories with short 8.3 aliases and equivalent path spellings.
+- Read release manifests with splitting compatible with Windows PowerShell 5.1 and PowerShell 7.
+- Verify and resume draft releases by numeric release ID when GitHub's tag endpoint does not return a draft.
+- Use release tooling from the workflow's immutable revision while preserving the validated tag and source assets.
+
+### Included mods
+
+- Aikya BoxBot 0.3.0, Aikya Flow 0.1.0 and Aikya Usage 0.1.0 (unchanged).
+
 ## [0.0.10] - 2026-10-25
 
 ### Added

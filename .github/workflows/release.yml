@@ -2,7 +2,7 @@ name: Release
 on:
   push:
     tags: ['v*']
-    branches: ['featuree/install-IDE']
+    branches: ['feature/installers-no-clone', 'develop']
   workflow_dispatch:
     inputs:
       tag:
@@ -111,9 +111,17 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
+      - name: Load release tooling from this workflow's immutable revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tools
+          persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Test the release tooling used for publication
+        run: python -m unittest discover -s .release-tools/tests -p test_publish_release.py -v
       - uses: actions/download-artifact@v8
         with:
           name: aikya-mods-${{ needs.resolve.outputs.tag }}-${{ needs.resolve.outputs.sha }}
@@ -127,4 +135,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: python scripts/publish_release.py --repo "$GH_REPO" --tag "$RELEASE_TAG" --sha "$RELEASE_SHA" --assets dist
+        run: python .release-tools/scripts/publish_release.py --repo "$GH_REPO" --tag "$RELEASE_TAG" --sha "$RELEASE_SHA" --assets dist

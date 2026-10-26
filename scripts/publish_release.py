@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 
-from build_release import SEMVER
+from build_release import SEMVER, installer_metadata, installer_manifest
 
 
 def local_assets(folder: Path, tag: str) -> dict[str, tuple[int, str]]:
@@ -20,6 +20,15 @@ def local_assets(folder: Path, tag: str) -> dict[str, tuple[int, str]]:
     if not isinstance(metadata.get('release_notes'), str) or not metadata['release_notes'].strip():
         raise ValueError('Release notes are required in release.json.')
     expected = {f'aikya-mods-{tag}.zip', 'install.sh', 'install.ps1', 'release.json'}
+    if metadata.get('installer_schema') == 1:
+        contract = installer_metadata(tag)
+        if any(metadata.get(key) != value for key, value in contract.items()):
+            raise ValueError('Invalid installer release contract.')
+        if (folder / 'installer-manifest.txt').read_bytes() != installer_manifest(tag):
+            raise ValueError('Installer manifest does not match the release.')
+        expected |= {contract['archives']['unix'], *contract['installers'].values(), 'installer-manifest.txt'}
+    elif tag != 'v0.0.10' or 'installer_schema' in metadata:
+        raise ValueError('Unsupported installer release schema.')
     for name, version in metadata['mods'].items():
         if not re.fullmatch(r'aikya-[a-z0-9-]+', name) or not re.fullmatch(SEMVER, version):
             raise ValueError('Invalid plugin metadata.')
@@ -74,8 +83,13 @@ def publish(repo: str, tag: str, sha: str, folder: Path, dry_run: bool = False) 
             notes.write_text(json.loads((folder / 'release.json').read_text())['release_notes'], encoding='utf-8')
             gh('release', 'create', tag, '--repo', repo, '--verify-tag', '--target', sha,
                '--draft', '--notes-file', str(notes), '--title', f'Aikya Mods {tag}')
+        pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{repo}/releases?per_page=100'))
+        existing = next((release for page in pages for release in page if release['tag_name'] == tag), None)
+    if (not existing or existing.get('draft') is not True or existing.get('target_commitish') != sha
+            or type(existing.get('id')) is not int or existing['id'] <= 0):
+        raise ValueError('The expected draft release could not be resolved by ID.')
     gh('release', 'upload', tag, '--repo', repo, *(str(folder / name) for name in assets), '--clobber')
-    remote = json.loads(gh('api', f'repos/{repo}/releases/tags/{tag}'))
+    remote = json.loads(gh('api', f'repos/{repo}/releases/{existing["id"]}'))
     uploaded = {item['name']: (item['size'], item.get('digest')) for item in remote['assets']}
     if not remote['draft'] or remote.get('target_commitish') != sha or uploaded != assets:
         raise ValueError('Uploaded assets or draft metadata did not match; the draft was not published.')
