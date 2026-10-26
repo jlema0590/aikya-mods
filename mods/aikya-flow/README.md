@@ -4,6 +4,14 @@ A native Claude Code mod that follows command activity and displays evidence-bac
 
 ## Install
 
+From your terminal, install directly from the hosted marketplace:
+
+```sh
+claude plugin install aikya-flow --marketplace jlema0590/aikya-mods
+```
+
+This installs only `aikya-flow`. To install the other mods, run their matching commands in the [installation guide](../../README.md#install-a-specific-mod).
+
 From the repository root:
 
 ```sh
@@ -18,7 +26,7 @@ Or in Claude Code, from the public repository:
 
 Restart Claude Code. Flow opens its native pane automatically in interactive sessions without requesting keyboard focus. In a sufficiently wide fullscreen terminal, Claude places the pane beside its transcript. A narrow or non-fullscreen terminal may place it above the prompt or defer opening it; use a wider fullscreen terminal for the agreed side-by-side layout.
 
-When BoxBot 0.3.0 or later is enabled, its conveyor appears below Flow in the same pane. Flow and Usage have no dependency on each other. Flow also runs without BoxBot.
+With Flow 0.1.1 and BoxBot 0.3.1 or later enabled, Flow stays at the top of the docked pane and the conveyor stays at the bottom. The shared frame uses the measured pane body height and adjusts on resize, in either hook order. Inline panes remain compact; if content exceeds the available height, Claude scrolls the whole pane. Flow and Usage have no dependency on each other. Flow also runs without BoxBot.
 
 ## Commands
 
@@ -29,11 +37,25 @@ When started with `claude` in an IDE's integrated terminal, Flow uses Claude's t
 /aikya-flow show
 /aikya-flow hide
 /aikya-flow status
+/aikya-flow still
+/aikya-flow motion
 /aikya-flow connect /absolute/path/to/execution-cache
 /aikya-flow disconnect
 ```
 
 `status` prints details locally without calling a model. `hide` closes the shared Flow pane; `/aikya-boxbot hide` hides only the conveyor section.
+
+## Phase diagram and motion
+
+Flow 0.1.2 shows Explore, Plan, Implement, Validate, Security and Review as rounded cards with arrows. A card contains the phase name and its state. Panels with at least 32 usable columns and 45 usable rows use cards; smaller, unmeasured or inline panels use a compact diagram. The layout keeps the existing shared frame and bottom BoxBot section. Very small panes still use Claude's native scrolling.
+
+State colors are gray for No evidence/Pending/Not applicable, cyan for Running, green for Completed, amber for Waiting/Blocked/Interrupted, and red for Failed. Native theme colors and visible state labels keep the diagram readable without color. The running symbol rotates every 250 ms. A confirmed completion/failure/block or handoff receives one 250 ms emphasis; first loads and duplicate reads do not replay confirmations. Cards stay fixed.
+
+`still` disables visual movement while readings continue updating; `motion` resumes current movement without replaying past changes. Both commands are local and add no on-screen controls. Animation and the existing two-second periodic cache reads share one coordinated timer. Closing or hiding the pane stops its scheduled work.
+
+The idle task placeholder and normal turn-ended activity banner are omitted. The header still shows current commands and relevant native activity, plus the evidence source. One applicable reason is shown compactly; `/aikya-flow status` includes every phase reason.
+
+To update an existing installation after these changes are available, use `/plugin` → Marketplaces → aikya-mods → Update marketplace, or `claude plugin marketplace update aikya-mods` followed by `claude plugin update aikya-flow@aikya-mods` in your terminal. Restart after shell updates. See the [complete update guide](../../README.md#update-installed-mods).
 
 ## Activity and evidence
 

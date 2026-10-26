@@ -45,7 +45,7 @@ export function endTurn(flow, event) {
   flow.running = false;
   flow.pendingTurn = false;
   flow.status = event.isAborted || event.reason === 'aborted' ? 'Interrupted' : event.reason === 'error' ? 'Error' : event.reason === 'refusal' ? 'Refused' : 'Turn ended';
-  flow.activity = 'Native turn ' + flow.status.toLowerCase() + '; phase evidence is separate';
+  flow.activity = flow.status === 'Turn ended' ? '' : 'Native turn ' + flow.status.toLowerCase();
 }
 export function phaseRows(flow) {
   const rows = recipe(flow.command);
