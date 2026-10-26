@@ -148,25 +148,47 @@ The installers register this local checkout as the `aikya-mods` marketplace and 
 
 ## Install a specific mod
 
+Run the command for each mod you want in your terminal. These commands work from any directory where `claude` is available:
+
+```sh
+claude plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
+claude plugin install aikya-flow --marketplace jlema0590/aikya-mods
+claude plugin install aikya-usage --marketplace jlema0590/aikya-mods
+```
+
+Each command installs only the named mod. If BoxBot is already installed, run the Flow and Usage commands to add them alongside it. You can also install Flow or Usage independently. The usage mod's package and command name is **aikya-usage**.
+
+From an existing Claude Code session, use the equivalent plugin commands:
+
+```text
+/plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
+/plugin install aikya-flow --marketplace jlema0590/aikya-mods
+/plugin install aikya-usage --marketplace jlema0590/aikya-mods
+```
+
+Restart Claude Code after installation. Then use these local commands inside the session:
+
+| Installed mod | Session command | Result |
+| --- | --- | --- |
+| Aikya BoxBot | `/aikya-boxbot` | Opens the conveyor animation |
+| Aikya Flow | `/aikya-flow` | Shows command activity and workflow states |
+| Aikya Usage | `/aikya-usage` | Reports context, observed tokens and account usage |
+
+Flow opens its pane and Usage enables its compact footer automatically after restart. Installing a plugin and invoking its `/aikya-*` session command are separate steps. Check installed mods from your terminal with:
+
+```sh
+claude plugin list
+```
+
+Claude Code manages the hosted marketplace source, using Git internally to retrieve this repository. For Git-free installation, use the OS release installers above.
+
+If you already have the complete source on disk, the individual local installers remain available:
+
 ```sh
 bash mods/aikya-boxbot/install.sh
 bash mods/aikya-flow/install.sh
 bash mods/aikya-usage/install.sh
 ```
-
-Or use Claude Code's hosted marketplace route:
-
-```sh
-claude plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
-```
-
-From a Claude Code session:
-
-```text
-/plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
-```
-
-Both hosted routes require access to the repository. The local checkout scripts use the source already on disk; the online scripts above download a verified release package without cloning.
 
 ## Options and scope
 

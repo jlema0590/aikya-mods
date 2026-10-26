@@ -4,6 +4,14 @@ Boxes move from left to right along a conveyor belt with turning rollers. BoxBot
 
 ## Install
 
+From your terminal, install directly from the hosted marketplace:
+
+```sh
+claude plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
+```
+
+This installs only `aikya-boxbot`. To install the other mods, run their matching commands in the [installation guide](../../README.md#install-a-specific-mod).
+
 From the repository root:
 
 ```sh
@@ -16,7 +24,7 @@ For direct installation from the hosted marketplace in a Claude Code session:
 /plugin install aikya-boxbot --marketplace jlema0590/aikya-mods
 ```
 
-Restart Claude Code after installation, then enter `/aikya-boxbot`. This repository is public. See the [online installers](../../README.md#install-with-one-command) for Linux, macOS and Windows.
+Restart Claude Code after installation, then enter `/aikya-boxbot`. This repository is public. See the [online installers](../../README.md#install-without-cloning) for Linux, macOS and Windows.
 
 ## Try without installation
 

@@ -4,6 +4,14 @@ A native Claude Code mod that displays Context, Tokens and Usage together on one
 
 ## Install
 
+From your terminal, install directly from the hosted marketplace:
+
+```sh
+claude plugin install aikya-usage --marketplace jlema0590/aikya-mods
+```
+
+This installs only `aikya-usage`. To install the other mods, run their matching commands in the [installation guide](../../README.md#install-a-specific-mod).
+
 From the repository root:
 
 ```sh

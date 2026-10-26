@@ -5,6 +5,11 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+### Documentation
+
+- Show direct hosted marketplace installation commands for BoxBot, Flow and Usage, with the equivalent in-session plugin commands and separate mod commands.
+- Clarify that each install command selects one mod and that Flow and Usage can be added alongside an existing BoxBot installation.
+
 ## [0.0.11] - 2026-10-26
 
 ### Added
