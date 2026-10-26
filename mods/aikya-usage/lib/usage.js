@@ -75,14 +75,35 @@ function number(value) {
   return String(value);
 }
 const percent = value => value === null ? 'N/A' : String(Math.round(value * 10) / 10) + '%';
-export function footer(view, totals, columns) {
+const part = (text, tone = 'text') => ({ text, tone });
+export function usageTone(value) {
+  return !finite(value) ? 'inactive' : value < 70 ? 'success' : value < 90 ? 'warning' : 'error';
+}
+function barParts(value, cells) {
+  const reading = metric(value), tone = usageTone(reading);
+  if (!cells) return [part(percent(reading), tone)];
+  const filled = reading === null ? 0 : Math.round(Math.min(reading, 100) * cells / 100);
+  return [part('['), part('='.repeat(filled), tone),
+    part((reading === null ? '?' : '-').repeat(cells - filled), 'inactive'), part('] '), part(percent(reading), tone)];
+}
+export function usageBar(value, cells) {
+  return barParts(value, cells).map(segment => segment.text).join('');
+}
+export function footerParts(view, totals, columns) {
   const context = percent(view.contextPercent), tokens = number(totals.total);
-  const used = percent(view.fiveHour) + '/' + percent(view.sevenDay);
-  const full = `Context: ${context} | Tokens: ${tokens} | Usage 5h/7d: ${used}`;
-  if (full.length <= columns) return full;
-  const compact = `Ctx:${context} Tok:${tokens} U5h/7d:${used}`;
-  if (compact.length <= columns) return compact;
-  return `C:${context} T:${tokens} U:${used}`;
+  for (const [cells, prefix, separator] of [
+    [10, `Context: ${context} | Tokens: ${tokens} | Usage 5h `, ' | 7d '],
+    [5, `Ctx:${context} Tok:${tokens} | 5h `, ' | 7d '],
+    [2, `C:${context} T:${tokens} 5h`, ' 7d'],
+    [1, `C:${context} T:${tokens} 5h`, ' 7d'],
+    [0, `C${context} T${tokens} 5h`, ' 7d'],
+  ]) {
+    const parts = [part(prefix), ...barParts(view.fiveHour, cells), part(separator), ...barParts(view.sevenDay, cells)];
+    if (parts.reduce((length, segment) => length + segment.text.length, 0) <= columns || !cells) return parts;
+  }
+}
+export function footer(view, totals, columns) {
+  return footerParts(view, totals, columns).map(segment => segment.text).join('');
 }
 export function details(view, totals) {
   const reading = value => value === null || value === undefined ? 'N/A' : String(value);

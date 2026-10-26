@@ -1,4 +1,4 @@
-import { normalizeUsage, createLedger, recordStep, recordTurn, readLedger, footer, details, turnKey } from '../lib/usage.js';
+import { normalizeUsage, createLedger, recordStep, recordTurn, readLedger, footerParts, details, turnKey } from '../lib/usage.js';
 
 async function refresh($, state) {
   const epoch = state.epoch;
@@ -65,7 +65,11 @@ export function register(on) {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (!state.visible || (e.surface !== 'terminal' && e.surface !== 'desktop')) return next(e);
     const { Text } = $.ui.resolve(e);
-    const line = footer(normalizeUsage(state.raw, await $.clock.now()), readLedger(state.ledger), Math.max(24, (e.viewport?.columns || 80) - 4));
-    return Text({ dimColor: true, wrap: 'truncate-end', children: [line] });
+    // PromptHint shares its row with Claude's mode indicators and separators.
+    const columns = Math.max(24, (e.viewport?.columns || 80) - 24);
+    const parts = footerParts(normalizeUsage(state.raw, await $.clock.now()), readLedger(state.ledger), columns);
+    return Text({ wrap: 'truncate-end', children: parts.map(segment => Text({
+      color: segment.tone, dimColor: segment.tone === 'text' || segment.tone === 'inactive', children: [segment.text],
+    })) });
   });
 }
