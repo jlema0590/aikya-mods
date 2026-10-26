@@ -90,12 +90,24 @@ export function register(on) {
     const artwork = e.surface === 'desktop' || e.surface === 'vscode'
       ? Svg({ source: svgFrame(state.frame), alt: 'Boxes moving from left to right on a conveyor belt' })
       : Code({ source: asciiFrame(state.frame, columns) });
-    const content = Box({ flexDirection: 'column', children: [
+    const content = Box({ flexDirection: 'column', flexShrink: 0, children: [
       Text({ key: 'title', bold: true, children: ['AIKYA BOXBOT'] }),
       Text({ key: 'activity', children: [status] }),
       artwork,
-      Text({ dimColor: true, children: ['Decorative animation. No task progress is measured.'] }),
     ] });
-    return shared ? Box({ flexDirection: 'column', children: [theirs, content] }) : content;
+    if (shared) {
+      // Flow owns the full-height frame. Fill its footer when it rendered first;
+      // otherwise return compact content for Flow to place there after next().
+      if (theirs?.props?.key === 'aikya-mods-pane' && theirs.children?.some(child => child?.props?.key === 'aikya-mods-footer')) {
+        return { ...theirs, children: theirs.children.map(child => child?.props?.key === 'aikya-mods-footer'
+          ? { ...child, children: [...(child.children || []), content] } : child) };
+      }
+      if (theirs?.type === 'engine') return content;
+      return Box({ flexDirection: 'column', children: [theirs, content] });
+    }
+    const rows = e.props.scroll?.bodyRows;
+    const minHeight = e.props.placement === 'dock' && Number.isFinite(rows) && rows > 0 ? rows : undefined;
+    return Box({ key: 'aikya-boxbot-pane', flexDirection: 'column', minHeight,
+      justifyContent: 'flex-end', children: [content] });
   });
 }
