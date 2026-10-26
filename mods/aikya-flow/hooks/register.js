@@ -162,6 +162,13 @@ export function register(on) {
     ];
     if (e.surface === 'terminal' && e.props.placement === 'inline') content.push(Text({ dimColor: true, children: ['Use a wider fullscreen terminal for side-by-side panes.'] }));
     const theirs = await next(e);
-    return Box({ flexDirection: 'column', rowGap: 0, children: [...content, theirs] });
+    const bodyRows = e.props.scroll?.bodyRows;
+    const minHeight = e.props.placement === 'dock' && Number.isFinite(bodyRows) && bodyRows > 0 ? bodyRows : undefined;
+    return Box({ key: 'aikya-mods-pane', flexDirection: 'column', rowGap: 0, minHeight, justifyContent: 'space-between', children: [
+      Box({ key: 'aikya-flow-content', flexDirection: 'column', flexShrink: 0, children: content }),
+      // The original Pane body is empty. Its opaque host drawing cannot be
+      // nested under a sized Box; only other mods' own trees belong here.
+      Box({ key: 'aikya-mods-footer', flexDirection: 'column', flexShrink: 0, children: theirs?.type === 'engine' ? [] : [theirs] }),
+    ] });
   });
 }

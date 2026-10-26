@@ -2,7 +2,7 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
-Bundle version: **0.0.11**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+Bundle version: **0.0.12**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
 | Mod | Status | Purpose |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Bundle version: **0.0.11**. [VERSION](VERSION) is the release source of truth; [
 | [Aikya Flow](mods/aikya-flow/) | Available | Command activity and evidence-backed workflow states |
 | [Aikya Usage](mods/aikya-usage/) | Available | Context, observed tokens and account usage on one compact bottom line |
 
-After restart, Flow opens a native pane automatically without requesting keyboard focus. BoxBot joins below Flow in the same pane when both are enabled. Usage appears on one compact line below the terminal prompt. Use a sufficiently wide fullscreen terminal for Claude Code on the left and the mods on the right; placement is controlled by Claude Code.
+After restart, Flow opens a native pane automatically without requesting keyboard focus. BoxBot stays at the bottom of the docked pane, with Flow above it when both are enabled. Usage appears on one compact line below the terminal prompt. Use a sufficiently wide fullscreen terminal for Claude Code on the left and the mods on the right; placement is controlled by Claude Code.
 
 Flow works without a semantic bridge and marks phases **No evidence** until connected to an existing compatible Aikya execution cache. Usage counts observed requests since the mod loaded, not earlier transcript history. See each mod’s documentation for its data sources and limits.
 
@@ -225,7 +225,17 @@ Boxes move from left to right along a conveyor. The panel has no playback, motio
 /aikya-boxbot hide
 ```
 
-The animation is decorative and does not measure task progress, tool success, or token usage.
+BoxBot 0.3.1 stays at the bottom of its docked pane. For a shared pane, use Flow 0.1.1 or later so that Flow stays above the conveyor. The position follows the available pane height when the terminal is resized. Narrow inline panes keep their natural height; content taller than the pane uses Claude's native scrolling.
+
+After these versions are available in the marketplace, update existing installations and restart Claude Code:
+
+```sh
+claude plugin marketplace update aikya-mods
+claude plugin update aikya-boxbot@aikya-mods
+claude plugin update aikya-flow@aikya-mods
+```
+
+Update Flow only if it is installed. The animation is decorative and does not measure task progress, tool success, or token usage.
 
 ## Verify
 
@@ -242,7 +252,7 @@ python3 tests/integration_package.py
 python3 tests/integration_platforms.py
 python3 tests/integration_online_release.py
 python3 scripts/build_release.py --check
-python3 scripts/build_release.py --version v0.0.11 --output dist
+python3 scripts/build_release.py --version v0.0.12 --output dist
 ```
 
 Installer tests execute the real Bash and PowerShell scripts against isolated HTTP/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).

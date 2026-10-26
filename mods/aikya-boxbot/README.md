@@ -48,9 +48,9 @@ The panel displays the animation without buttons or on-screen controls. Escape c
 
 The same Claude terminal surface applies when `claude` is started in Cursor, Trae or a JetBrains IDE's integrated terminal. User-scoped installation is shared only when those terminals use the same user, runtime and Claude configuration. See the [integrated-terminal validation matrix](../../docs/terminal-compatibility.md) for actual validation status and the manual protocol.
 
-When Aikya Flow is enabled, BoxBot appears below Flow in the same native pane automatically. Flow opens that pane at interactive startup, keeping the prompt's keyboard focus. No on-screen controls are added. Closing the Flow pane stops the conveyor; hiding BoxBot removes only its section.
+BoxBot 0.3.1 anchors the conveyor at the bottom of its docked pane. With Aikya Flow 0.1.1 or later enabled, Flow stays at the top and BoxBot fills the bottom section of that same native pane. Flow opens that pane at interactive startup, keeping the prompt's keyboard focus. No on-screen controls are added. Closing the Flow pane stops the conveyor; hiding BoxBot removes only its section.
 
-Without Flow, use `/aikya-boxbot` to open its independent pane. Native panes require a sufficiently wide fullscreen terminal for side docking; the host controls placement. The animation stops when another pane is drawn. Pausing for every possible platform visibility change is not guaranteed by this prototype.
+Without Flow, use `/aikya-boxbot` to open its independent pane, with the conveyor at the bottom. The layout uses the measured pane body height and adjusts on resize. Inline panes remain compact. If the combined content is taller than the available pane, Claude scrolls the whole content; the footer is not a separate scrolling region. Native panes require a sufficiently wide fullscreen terminal for side docking; the host controls placement. The animation stops when another pane is drawn. Pausing for every possible platform visibility change is not guaranteed by this prototype.
 
 You can also use:
 
@@ -77,7 +77,7 @@ claude plugin validate ./aikya-boxbot --strict
 claude plugin test ./aikya-boxbot
 ```
 
-The eleven tests exercise opening, timer-driven updates, pause/resume, still mode, Desktop/VS Code element validation, closing/reopening, narrow layouts, conveyor movement, loop continuity, and composition below Flow in either hook order. Native surface tests validate element trees; they do not replace a manual session check of the final application paint.
+The native tests exercise opening, timer-driven updates, pause/resume, still mode, Desktop/VS Code element validation, closing/reopening, narrow layouts, conveyor movement, loop continuity, and bottom anchoring at different pane heights, compact inline layouts, and a single shared frame in either hook order. Native surface tests validate element trees; they do not replace a manual session check of the final application paint.
 
 API references: [official mods reference](https://code.claude.com/docs/en/plugins/mods/reference), [official testing guide](https://code.claude.com/docs/en/plugins/mods/test).
 

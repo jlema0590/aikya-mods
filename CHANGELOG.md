@@ -5,6 +5,17 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-10-26
+
+### Fixed
+
+- Anchor BoxBot at the bottom of its docked pane, using the measured pane body height on every render and terminal resize.
+- Keep Flow above a shared bottom BoxBot section in either hook order, without nesting full-height panes. Inline panes retain their compact layout.
+
+### Included mods
+
+- Aikya BoxBot 0.3.1, Aikya Flow 0.1.1 and Aikya Usage 0.1.0.
+
 ### Documentation
 
 - Show direct hosted marketplace installation commands for BoxBot, Flow and Usage, with the equivalent in-session plugin commands and separate mod commands.

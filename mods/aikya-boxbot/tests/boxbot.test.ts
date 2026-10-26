@@ -136,3 +136,78 @@ for (const tier of ['prepend', 'append'] as const) {
     await ui.unmount()
   })
 }
+
+for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
+  for (const rows of [18, 36]) {
+    test('the standalone dock uses its measured body height and places BoxBot at the bottom (' + surface + ', ' + rows + ' rows)', async ($, on) => {
+      engineStubs(on)
+      mock.clock(on)
+      await $.command.run({ command: 'aikya-boxbot', args: 'still' })
+      const ui = await $.ui.mount({ ...pane, surface, props: { ...pane.props, placement: 'dock', bodyColumns: 38, scroll: { offset: 0, bodyRows: rows } }, viewport: { columns: 180, rows: 60, isFullscreen: true } })
+      const drawing = await ui.drawn()
+      expect(drawing.props.minHeight).toBe(rows)
+      expect(drawing.props.justifyContent).toBe('flex-end')
+      expect(drawing.children.length).toBe(1)
+      expect(JSON.stringify(drawing)).toMatch('AIKYA BOXBOT')
+      await ui.unmount()
+    })
+  }
+}
+
+test('an inline pane remains compact instead of reserving the terminal height', async ($, on) => {
+  engineStubs(on)
+  mock.clock(on)
+  await $.command.run({ command: 'aikya-boxbot', args: 'still' })
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal', props: { ...pane.props, scroll: { offset: 0, bodyRows: 12 } }, viewport: { columns: 80, rows: 60, isFullscreen: false } })
+  const drawing = await ui.drawn()
+  expect(drawing.props.minHeight).toBeUndefined()
+  expect(JSON.stringify(drawing)).toMatch('AIKYA BOXBOT')
+  await ui.unmount()
+})
+
+for (const tier of ['prepend', 'append'] as const) {
+  test('the shared pane contains one full-height frame and one bottom BoxBot (' + tier + ')', {
+    plugins: [{ name: 'flow-layout', tier, register(on) {
+      on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+        const { Box, Text } = $.ui.resolve(e)
+        return Box({ key: 'aikya-mods-pane', minHeight: e.props.scroll.bodyRows, flexDirection: 'column', justifyContent: 'space-between', children: [
+          Box({ key: 'aikya-flow-content', flexShrink: 0, children: [Text({ children: ['AIKYA FLOW'] })] }),
+          Box({ key: 'aikya-mods-footer', flexDirection: 'column', flexShrink: 0, children: [await next(e)] }),
+        ] })
+      })
+    } }],
+  }, async ($, on) => {
+    engineStubs(on)
+    mock.clock(on)
+    const ui = await $.ui.mount({ ...pane, requestId: 'aikya-flow', surface: 'terminal', props: { ...pane.props, placement: 'dock', scroll: { offset: 0, bodyRows: 32 } } })
+    const drawing = await ui.drawn()
+    expect(drawing.props.key).toBe('aikya-mods-pane')
+    expect(drawing.props.minHeight).toBe(32)
+    expect(drawing.props.justifyContent).toBe('space-between')
+    const footer = await ui.find({ key: 'aikya-mods-footer' })
+    expect(JSON.stringify(footer)).toMatch('AIKYA BOXBOT')
+    expect(JSON.stringify(drawing).split('AIKYA BOXBOT').length - 1).toBe(1)
+    expect(JSON.stringify(drawing).split('"minHeight":32').length - 1).toBe(1)
+    expect(drawing.children[0].props.key).toBe('aikya-flow-content')
+    await ui.unmount()
+  })
+}
+
+test('BoxBot fills an empty Flow footer whose children are omitted by the host', {
+  plugins: [{ name: 'empty-flow-footer', tier: 'append', register(on) {
+    on('ui.render', { component: 'Pane' }, async ($, e) => {
+      const { Box, Text } = $.ui.resolve(e)
+      return Box({ key: 'aikya-mods-pane', minHeight: 32, flexDirection: 'column', justifyContent: 'space-between', children: [
+        Text({ children: ['AIKYA FLOW'] }),
+        Box({ key: 'aikya-mods-footer', flexDirection: 'column', flexShrink: 0 }),
+      ] })
+    })
+  } }],
+}, async ($, on) => {
+  engineStubs(on)
+  mock.clock(on)
+  const ui = await $.ui.mount({ ...pane, requestId: 'aikya-flow', surface: 'terminal', props: { ...pane.props, placement: 'dock', scroll: { offset: 0, bodyRows: 32 } } })
+  const footer = await ui.find({ key: 'aikya-mods-footer' })
+  expect(JSON.stringify(footer)).toMatch('AIKYA BOXBOT')
+  await ui.unmount()
+})

@@ -26,7 +26,7 @@ Or in Claude Code, from the public repository:
 
 Restart Claude Code. Flow opens its native pane automatically in interactive sessions without requesting keyboard focus. In a sufficiently wide fullscreen terminal, Claude places the pane beside its transcript. A narrow or non-fullscreen terminal may place it above the prompt or defer opening it; use a wider fullscreen terminal for the agreed side-by-side layout.
 
-When BoxBot 0.3.0 or later is enabled, its conveyor appears below Flow in the same pane. Flow and Usage have no dependency on each other. Flow also runs without BoxBot.
+With Flow 0.1.1 and BoxBot 0.3.1 or later enabled, Flow stays at the top of the docked pane and the conveyor stays at the bottom. The shared frame uses the measured pane body height and adjusts on resize, in either hook order. Inline panes remain compact; if content exceeds the available height, Claude scrolls the whole pane. Flow and Usage have no dependency on each other. Flow also runs without BoxBot.
 
 ## Commands
 

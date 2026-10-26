@@ -24,7 +24,7 @@ function engine(on, options = {}) {
   on('session.end', () => ({ sessionId: 's' }))
   on('ui.open', ($, e) => { opens.push(e); return { value: { isPlaced: true } } })
   on('ui.close', () => ({ value: undefined }))
-  on('ui.render', () => ({ type: 'Box', props: {}, children: [] }))
+  on('ui.render', () => options.nativeDrawing ? ({ type: 'engine', ref: 0 }) : ({ type: 'Box', props: {}, children: [] }))
   on('command.run', ($, e) => ({ text: 'Original ' + e.command, context: ['original context'] }))
   on('skill.prompt', ($, e) => ({ text: e.text }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
@@ -131,4 +131,37 @@ test('a local command can return without claiming an ongoing model turn or verif
   await $.turn.start({ turnId: 'follow-up', text: 'continue' })
   const started = await $.command.run({ command: 'aikya-flow', args: 'status' })
   expect(started.text).toMatch('Native activity: Running')
+})
+
+for (const rows of [18, 36]) {
+  test('the dock reserves its measured height with a footer after Flow (' + rows + ' rows)', async ($, on) => {
+    engine(on)
+    const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: rows } } })
+    const drawing = await ui.drawn()
+    expect(drawing.props.key).toBe('aikya-mods-pane')
+    expect(drawing.props.minHeight).toBe(rows)
+    expect(drawing.props.justifyContent).toBe('space-between')
+    expect(drawing.children[0].props.key).toBe('aikya-flow-content')
+    const footer = await ui.find({ key: 'aikya-mods-footer' })
+    expect(footer.props.flexShrink).toBe(0)
+    await ui.unmount()
+  })
+}
+
+test('the inline Flow pane keeps a compact footer without filling the terminal', async ($, on) => {
+  engine(on)
+  const ui = await $.ui.mount({ ...pane, surface: 'terminal', props: { ...pane.props, placement: 'inline', scroll: { offset: 0, bodyRows: 12 } }, viewport: { columns: 80, rows: 60, isFullscreen: false } })
+  const drawing = await ui.drawn()
+  expect(drawing.props.minHeight).toBeUndefined()
+  expect(JSON.stringify(drawing)).toMatch('AIKYA FLOW')
+  expect(await ui.find({ key: 'aikya-mods-footer' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a full-height Flow frame does not wrap the original host drawing', async ($, on) => {
+  engine(on, { nativeDrawing: true })
+  const ui = await $.ui.mount({ ...pane, props: { ...pane.props, scroll: { offset: 0, bodyRows: 32 } } })
+  expect(JSON.stringify(await ui.drawn())).not.toMatch('"type":"engine"')
+  expect(await ui.find({ key: 'aikya-mods-footer' })).toBeDefined()
+  await ui.unmount()
 })
