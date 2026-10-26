@@ -4,15 +4,47 @@ Independent Claude Code mods, with an individual installer for each released mod
 
 Bundle version: **0.0.14**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
-| Mod | Status | Purpose |
+| Mod | Version | Purpose |
 | --- | --- | --- |
-| [Aikya BoxBot](mods/aikya-boxbot/) | Available | Decorative boxes on a moving conveyor belt, with no on-screen controls |
-| [Aikya Flow](mods/aikya-flow/) | Available | Command activity and evidence-backed workflow states |
-| [Aikya Usage](mods/aikya-usage/) | Available | Context, observed tokens and account usage on one compact bottom line |
+| [Aikya BoxBot](mods/aikya-boxbot/) | 0.3.2 | Decorative boxes on a moving conveyor belt at the bottom of the mod pane |
+| [Aikya Flow](mods/aikya-flow/) | 0.1.2 | Evidence-backed phase diagrams with state colors and animation |
+| [Aikya Usage](mods/aikya-usage/) | 0.1.1 | Context, observed tokens and separate 5h/7d usage bars on one bottom line |
 
 After restart, Flow opens a native pane automatically without requesting keyboard focus. BoxBot stays at the bottom of the docked pane, with Flow above it when both are enabled. Usage appears on one compact line below the terminal prompt. Use a sufficiently wide fullscreen terminal for Claude Code on the left and the mods on the right; placement is controlled by Claude Code.
 
 Flow works without a semantic bridge and marks phases **No evidence** until connected to an existing compatible Aikya execution cache. Usage counts observed requests since the mod loaded, not earlier transcript history. See each mod’s documentation for its data sources and limits.
+
+## Terminal layout
+
+Illustrative compact layout with all three mods enabled; values and phase states are examples. Claude Code occupies the left side, Flow the right side, BoxBot the bottom of that pane, and Usage one footer line below the prompt.
+
+```text
+Claude Code                            | AIKYA FLOW
+                                       | Explore   ✓ Completed
+Working on your request...             |           ↓
+                                       | Plan      ✓ Completed
+                                       |           ↓
+                                       | Implement ◐ Running
+                                       |           ↓
+                                       | Validate  ○ Pending
+                                       |           ↓
+                                       | Security  ○ Pending
+                                       |           ↓
+                                       | Review    ○ Pending
+                                       |
+                                       | AIKYA BOXBOT
+                                       | Conveyor running
+                                       | +---+           +---+
+                                       | |:::|           |:::|
+                                       | +---+           +---+
+                                       | ====>====>====>====>====>
+                                       |  o   o   o   o   o   o
+                                       | IN                   OUT
+>                                      |
+Context: 42% | Tokens: 53k | Usage 5h [====------] 40% | 7d [========--] 80%
+```
+
+Taller docked panes show rounded phase cards connected by arrows. Smaller panes use the compact diagram above; very small panes use Claude's native scrolling. The mods have no on-screen controls. The terminal theme supplies the actual colors.
 
 ## Requirements
 
@@ -231,6 +263,20 @@ Update only the mods you have installed. Restart Claude Code after shell updates
 
 Flow shows six phases as rounded cards connected by arrows when the panel is tall enough. In a smaller panel it uses a compact diagram. Completed phases are green, active phases cyan, waits and interruptions amber, failures red, and unknown/pending/not-applicable phases gray. The running symbol changes every 250 ms; confirmed transitions receive one brief emphasis. Native activity does not count as phase evidence.
 
+| Phase state | Color | Meaning |
+| --- | --- | --- |
+| No evidence | Gray | No valid phase evidence is available |
+| Pending | Gray | The execution snapshot reports the phase as pending |
+| Running | Cyan | The phase is active; its indicator animates |
+| Waiting | Amber | The phase is waiting |
+| Completed | Green | The phase has confirmed completion evidence |
+| Failed | Red | The phase reports a failure |
+| Not applicable | Gray | The phase does not apply to this recipe |
+| Blocked | Amber | A blocker prevents the phase from proceeding |
+| Interrupted | Amber | The phase was interrupted |
+
+The default sequence is **Explore → Plan → Implement → Validate → Security → Review**. Bug-fix commands use **Reproduce → Diagnose → Fix → Regression → Security → Review**. Read-only recipes mark implementation as **Not applicable**.
+
 ```text
 /aikya-flow status
 /aikya-flow still
@@ -238,6 +284,14 @@ Flow shows six phases as rounded cards connected by arrows when the panel is tal
 ```
 
 Still mode freezes only visual effects; phase readings keep updating. Flow adds no buttons, keeps BoxBot below the diagram, omits the placeholder task label, and hides the normal turn-ended activity line.
+
+To supply phase evidence, connect the cache root from an existing compatible Aikya harness:
+
+```text
+/aikya-flow connect /absolute/path/to/execution-cache
+```
+
+A finished Claude turn or tool call does not complete a phase. See the [Flow evidence contract](mods/aikya-flow/README.md#activity-and-evidence) for compatible cache records and validation rules.
 
 ## Use BoxBot
 
@@ -255,17 +309,9 @@ Boxes move from left to right along a conveyor. The panel has no playback, motio
 /aikya-boxbot hide
 ```
 
-BoxBot 0.3.1 stays at the bottom of its docked pane. For a shared pane, use Flow 0.1.1 or later so that Flow stays above the conveyor. The position follows the available pane height when the terminal is resized. Narrow inline panes keep their natural height; content taller than the pane uses Claude's native scrolling.
+BoxBot stays at the bottom of its docked pane. With Flow enabled, the phase diagram stays above the conveyor. The position follows the available pane height when the terminal is resized. Narrow inline panes keep their natural height; content taller than the pane uses Claude's native scrolling.
 
-After these versions are available in the marketplace, update existing installations and restart Claude Code:
-
-```sh
-claude plugin marketplace update aikya-mods
-claude plugin update aikya-boxbot@aikya-mods
-claude plugin update aikya-flow@aikya-mods
-```
-
-Update Flow only if it is installed. The animation is decorative and does not measure task progress, tool success, or token usage.
+The pane omits the decorative-animation disclaimer. The animation remains decorative and does not measure task progress, tool success, or token usage. Follow [Update installed mods](#update-installed-mods) to update BoxBot and Flow together if both are installed.
 
 ## Use Usage
 
@@ -279,12 +325,7 @@ Each consumed segment (`=`) and its percentage use the theme's success color bel
 
 The footer shortens its bars and labels as space decreases, then uses a numeric fallback when bars cannot fit. It adds no rows or side panels. Use `/aikya-usage` for the full local report. Terminals without colors retain the same readable text.
 
-After this version is available in the marketplace, update and restart Claude Code:
-
-```sh
-claude plugin marketplace update aikya-mods
-claude plugin update aikya-usage@aikya-mods
-```
+Follow [Update installed mods](#update-installed-mods) to get the usage bars when this version is available from your marketplace.
 
 ## Verify
 
@@ -311,6 +352,8 @@ The [release workflow](.github/workflows/release.yml) rehearses the full validat
 Official references: [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), [mods](https://code.claude.com/docs/en/plugins/mods/reference).
 
 Validation results and scope: [Flow and Usage validation](aikya/docs/research/2026-10-24-mods-validation.md).
+
+Latest feature validation: [Flow diagram, colors and motion](docs/validation/2026-10-26-flow-phase-diagram.md), [Usage progress bars](docs/validation/2026-10-26-usage-progress-bars.md), and [BoxBot bottom placement](docs/validation/2026-10-26-boxbot-bottom.md).
 
 Claude terminal startup and configuration-sharing results: [integrated-terminal validation](aikya/docs/research/2026-10-25-integrated-terminal-validation.md).
 
