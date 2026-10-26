@@ -84,9 +84,11 @@ function Expand-VerifiedArchive([string]$Path, [string]$Destination) {
 }
 function Get-TreeHashes([string]$Path) {
     $result = @{}
-    foreach ($entry in Get-ChildItem -LiteralPath $Path -Recurse -Force) {
+    # Provider-returned relative names also work with Windows 8.3 aliases and .. paths.
+    foreach ($name in Get-ChildItem -LiteralPath $Path -Recurse -Force -Name) {
+        $entry = Get-Item -LiteralPath (Join-Path $Path $name) -Force
         if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'The installed release contains a link. Preserve it before retrying.' }
-        $relative = $entry.FullName.Substring($Path.Length).Replace('\', '/')
+        $relative = $name.Replace('\', '/')
         $result[$relative] = if ($entry.PSIsContainer) { 'directory' } else { (Get-FileHash -LiteralPath $entry.FullName -Algorithm SHA256).Hash }
     }
     return $result

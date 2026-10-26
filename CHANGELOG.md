@@ -22,6 +22,7 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ### Fixed
 
+- Repeated Windows installation compares provider-relative paths, including temporary directories with short 8.3 aliases and equivalent path spellings.
 - Verify and resume draft releases by numeric release ID when GitHub's tag endpoint does not return a draft.
 - Use release tooling from the workflow's immutable revision while preserving the validated tag and source assets.
 

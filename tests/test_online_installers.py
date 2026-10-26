@@ -206,6 +206,15 @@ elif tool == 'claude':
         self.assertEqual(self.calls('git'), [])
         self.assertFalse((legacy.parent.parent / '.install-lock').exists())
 
+    def test_repeated_install_accepts_equivalent_noncanonical_cache_paths(self):
+        (self.base / 'extra path component').mkdir()
+        self.env['AIKYA_MODS_HOME'] = str(self.base / 'extra path component' / '..' / 'persistent cache á')
+        first = self.run_script()
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        again = self.run_script()
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertTrue(self.retained().is_dir())
+
     def test_modified_version_is_not_overwritten_or_registered(self):
         self.assertEqual(self.run_script().returncode, 0)
         target = self.retained() / 'VERSION'
