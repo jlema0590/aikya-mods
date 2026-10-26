@@ -35,9 +35,12 @@ with open(os.environ['AIKYA_GH_LOG'], 'a') as stream: stream.write(json.dumps(ar
 fault = os.environ.get('AIKYA_GH_FAULT')
 if args[0] == 'api':
     if '--paginate' in args: print(json.dumps([[state]] if state else [[]]))
-    else: print(json.dumps(state))
+    elif state and args[-1].endswith('/releases/' + str(state.get('id'))): print(json.dumps(state))
+    else:
+        print('gh: Not Found (HTTP 404)', file=sys.stderr)
+        sys.exit(1)
 elif args[:2] == ['release', 'create']:
-    state = {'tag_name': args[2], 'draft': True, 'target_commitish': args[args.index('--target') + 1], 'assets': []}
+    state = {'id': 17, 'tag_name': args[2], 'draft': True, 'target_commitish': args[args.index('--target') + 1], 'assets': []}
     if '--notes-file' in args: state['body'] = pathlib.Path(args[args.index('--notes-file') + 1]).read_text(encoding='utf-8')
 elif args[:2] == ['release', 'upload']:
     if fault == 'upload': sys.exit(19)
@@ -85,8 +88,8 @@ state_path.write_text(json.dumps(state))
             self.assertTrue(state['draft'])
             self.assertFalse(any(args[:2] == ['release', 'edit'] for args in self.calls()))
 
-    def test_a_matching_draft_can_be_resumed(self):
-        self.state.write_text(json.dumps({'tag_name': 'v1.2.3', 'draft': True, 'target_commitish': SHA, 'assets': []}))
+    def test_a_matching_draft_can_be_resumed_by_id_when_the_tag_endpoint_is_missing(self):
+        self.state.write_text(json.dumps({'id': 17, 'tag_name': 'v1.2.3', 'draft': True, 'target_commitish': SHA, 'assets': []}))
         result = self.publish()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(any(args[:2] == ['release', 'create'] for args in self.calls()))
@@ -109,7 +112,7 @@ state_path.write_text(json.dumps(state))
     def test_dry_run_checks_real_assets_without_contacting_github(self):
         result = self.publish('--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('8', result.stdout)
+        self.assertIn('13 release assets', result.stdout)
         self.assertIsNone(json.loads(self.state.read_text()))
         self.assertEqual(self.calls(), [])
 

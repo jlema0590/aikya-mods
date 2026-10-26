@@ -3,15 +3,30 @@
 import argparse
 from datetime import date
 import hashlib
+import gzip
+import io
 import json
 from pathlib import Path
 import re
 import shutil
 import sys
+import tarfile
 import zipfile
 
 
 SEMVER = r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+
+
+def installer_metadata(tag: str) -> dict:
+    return {'installer_schema': 1,
+            'archives': {'unix': f'aikya-mods-{tag}.tar.gz', 'windows': f'aikya-mods-{tag}.zip'},
+            'installers': {'linux': 'install-linux.sh', 'macos': 'install-macos.sh',
+                           'windows': 'install-windows.ps1'}}
+
+
+def installer_manifest(tag: str) -> bytes:
+    return (f'installer_schema=1\nversion={tag}\nunix_archive=aikya-mods-{tag}.tar.gz\n'
+            f'windows_archive=aikya-mods-{tag}.zip\n').encode('ascii')
 
 
 def release_info(root: Path, tag: str | None = None) -> dict[str, str]:
@@ -76,6 +91,24 @@ def zip_files(destination: Path, entries: dict[str, bytes]) -> None:
             archive.writestr(info, data, compresslevel=9)
 
 
+def tar_files(destination: Path, entries: dict[str, bytes]) -> None:
+    with destination.open('wb') as stream:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=stream, mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed, mode='w', format=tarfile.USTAR_FORMAT) as archive:
+                for name, data in sorted(entries.items()):
+                    info = tarfile.TarInfo(name)
+                    info.size = len(data)
+                    info.mode = 0o755 if name.endswith('.sh') else 0o644
+                    archive.addfile(info, io.BytesIO(data))
+
+
+def render_unix_installer(source: bytes, platform: str) -> bytes:
+    if platform not in ('linux', 'macos'):
+        raise ValueError('Unknown installer platform.')
+    first, rest = source.split(b'\n', 1)
+    return first + b'\nAIKYA_INSTALL_OS=' + platform.encode('ascii') + b'\n' + rest
+
+
 def build(root: Path, version: str | None, output: Path) -> None:
     if version is not None and not re.fullmatch('v' + SEMVER, version):
         raise ValueError('Invalid release tag; use vMAJOR.MINOR.PATCH without leading zeroes.')
@@ -103,17 +136,22 @@ def build(root: Path, version: str | None, output: Path) -> None:
         plugin_files[name] = selected
         files.extend(selected)
     contents = {relative.replace('\\', '/'): checked_file(root, relative).read_bytes() for relative in files}
-    metadata = {**release, 'claude_version': claude_version, 'mods': mods}
+    metadata = {**release, 'claude_version': claude_version, 'mods': mods, **installer_metadata(version)}
     metadata_bytes = (json.dumps(metadata, indent=2, sort_keys=True) + '\n').encode()
     output.mkdir(parents=True, exist_ok=True)
     bundle = {f'aikya-mods/{path}': data for path, data in contents.items()}
     bundle['aikya-mods/release.json'] = metadata_bytes
     zip_files(output / f'aikya-mods-{version}.zip', bundle)
+    tar_files(output / f'aikya-mods-{version}.tar.gz', bundle)
     for name, selected in plugin_files.items():
         entries = {path.replace('\\', '/').removeprefix('mods/'): contents[path.replace('\\', '/')] for path in selected}
         zip_files(output / f'{name}-{mods[name]}.zip', entries)
     for installer in ('install.sh', 'install.ps1'):
         shutil.copyfile(root / 'installers' / installer, output / installer)
+    for platform in ('linux', 'macos'):
+        (output / f'install-{platform}.sh').write_bytes(render_unix_installer(contents['installers/install.sh'], platform))
+    shutil.copyfile(root / 'installers/install.ps1', output / 'install-windows.ps1')
+    (output / 'installer-manifest.txt').write_bytes(installer_manifest(version))
     (output / 'release.json').write_bytes(metadata_bytes)
     sums = ''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(output.iterdir()))
     (output / 'SHA256SUMS').write_text(sums, encoding='utf-8', newline='\n')
