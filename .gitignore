@@ -5,3 +5,4 @@ __pycache__/
 .claude-plugin/types/
 .env
 .env.*
+dist/

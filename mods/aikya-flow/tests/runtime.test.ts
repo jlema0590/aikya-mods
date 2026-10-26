@@ -8,6 +8,11 @@ function rawSnapshot() {
   phases.plan = { status: 'waiting', reason: 'Approval required', evidence: [], actors: {} }
   return { schema: 1, identity, run_id: 'r1', command: 'aikya-feature', status: 'waiting', revision: 3, candidate_generation: 1, started_at: 0, updated_at: 0, phases }
 }
+function fixturePath(value) {
+  // Claude normalizes absolute paths before the filesystem boundary on Windows.
+  // These two virtual fixture roots keep the same identity on every test host.
+  return value.replace(/\\/g, '/').replace(/^[A-Za-z]:(?=\/(?:work|cache)(?:\/|$))/, '')
+}
 function engine(on, options = {}) {
   const clock = mock.clock(on)
   const opens = []
@@ -25,10 +30,14 @@ function engine(on, options = {}) {
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('tool.call', () => options.toolResult || { result: 'unchanged tool output' })
-  on('fs.stat', ($, e) => ({ value: { kind: e.path === '/work' || e.path === '/cache' ? 'directory' : 'file', size: 500, mtimeMs: 0, isLink: false, realPath: e.path } }))
+  on('fs.stat', ($, e) => {
+    const path = fixturePath(e.path)
+    return { value: { kind: path === '/work' || path === '/cache' ? 'directory' : 'file', size: 500, mtimeMs: 0, isLink: false, realPath: path } }
+  })
   on('fs.read', ($, e) => {
-    if (!(e.path in files)) throw new Error('ENOENT')
-    return { value: JSON.stringify(files[e.path]) }
+    const path = fixturePath(e.path)
+    if (!(path in files)) throw new Error('ENOENT')
+    return { value: JSON.stringify(files[path]) }
   })
   return { clock, opens, files }
 }
