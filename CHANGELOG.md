@@ -5,6 +5,23 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-10-28
+
+### Fixed
+
+- Connect Flow automatically to compatible Harness execution metadata, including child processes and worktrees, using the real Claude session and an explicit invocation ID.
+- Accept a correlated execution whose hook started before the mod, without allowing foreign invocations or older candidate revisions.
+- Keep background phase evidence across approval/follow-up turns; separate parallel and sequential execution snapshots instead of mixing their evidence.
+
+### Added
+
+- Per-execution focus/mode labels and summaries in local status, plus explicit bridge diagnostics and `connect auto` recovery.
+- Producer/consumer regression coverage for the matching Harness 7.1.1 bridge. Older Harness versions retain manual cache connection.
+
+### Included mods
+
+- Aikya BoxBot 0.3.2, Aikya Flow 0.1.3 and Aikya Usage 0.1.1.
+
 ## [0.0.14] - 2026-10-26
 
 ### Added

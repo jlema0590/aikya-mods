@@ -17,6 +17,9 @@ function engine(on, options = {}) {
   const clock = mock.clock(on)
   const opens = []
   const files = options.files || {}
+  const env = { AIKYA_EXECUTION_CACHE: '/cache', ...options.env }
+  on('env.get', ($, e) => ({ value: env[e.name] }))
+  on('env.set', ($, e) => { env[e.name] = e.value; return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
   on('session.start', () => ({ cwd: '/work' }))
   on('session.cwd', () => ({ value: '/work' }))
@@ -40,7 +43,7 @@ function engine(on, options = {}) {
     if (!(path in files)) throw new Error('ENOENT')
     return { value: JSON.stringify(files[path]) }
   })
-  return { clock, opens, files }
+  return { clock, opens, files, env }
 }
 
 test('Flow opens the side pane at interactive startup without requesting keyboard focus', async ($, on) => {
@@ -278,3 +281,105 @@ test('an unreadable execution cancels a confirmation instead of highlighting No 
   expect(JSON.stringify(phase)).not.toMatch('"bold":true')
   await ui.unmount()
 })
+
+test('automatic bridge follows a real worktree snapshot with an earlier hook start', async ($, on) => {
+  const { clock, files, env } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await clock.advance(100)
+  await $.command.run({ command: 'aikya-analyze', args: '' })
+  const context = JSON.parse(env.AIKYA_FLOW_CONTEXT || '{}')
+  expect(context.session_id).toBe('s')
+  expect(context.origin_root).toBe('/work')
+  const targetIdentity = await executionIdentity('/work/.claude/worktrees/analysis', 's')
+  const raw = rawSnapshot()
+  Object.assign(raw, { identity: targetIdentity, run_id: 'worktree-1', command: 'aikya-analyze', flow_invocation: context.invocation_id })
+  raw.phases.explore = { status: 'running', reason: '', evidence: [], actors: {} }
+  files['/cache/' + identity + '/flow-' + context.invocation_id + '.json'] = {
+    schema: 1, identity, session_id: 's', invocation_id: context.invocation_id, command: 'aikya-analyze',
+    runs: [{ identity: targetIdentity, run_id: 'worktree-1', mode: 'preview', focus: 'architecture' }],
+  }
+  files['/cache/' + targetIdentity + '/worktree-1.json'] = raw
+  await clock.advance(2000)
+  const result = await $.command.run({ command: 'aikya-flow', args: 'status' })
+  expect(result.text).toMatch('Explore: Running')
+  expect(result.text).toMatch('Architecture')
+  expect(result.text).toMatch('Preview')
+  await $.turn.start({ turnId: 't1', text: 'run analysis' })
+  await $.turn.complete({ turnId: 't1', answer: 'waiting for background job', reason: 'answer', durationMs: 1, isAborted: false })
+  await $.turn.start({ turnId: 't2', text: 'yes, continue' })
+  expect(env.AIKYA_FLOW_CONTEXT).toBe(JSON.stringify(context))
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('/aikya-analyze')
+})
+
+test('a missing automatic bridge tells the user why phase states are unavailable', async ($, on) => {
+  engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-analyze', args: '' })
+  const status = await $.command.run({ command: 'aikya-flow', args: 'status' })
+  expect(status.text).toMatch('Waiting for execution')
+  expect(status.text).not.toMatch('Completed')
+})
+
+test('a new explicit command isolates old work and a corrupt index reports a diagnostic', async ($, on) => {
+  const { env, files } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-analyze', args: '' })
+  const old = JSON.parse(env.AIKYA_FLOW_CONTEXT)
+  await $.command.run({ command: 'aikya-feature', args: '' })
+  const current = JSON.parse(env.AIKYA_FLOW_CONTEXT)
+  expect(current.invocation_id).not.toBe(old.invocation_id)
+  files['/cache/' + identity + '/flow-' + current.invocation_id + '.json'] = { schema: 1, ...old, runs: [] }
+  const result = await $.command.run({ command: 'aikya-flow', args: 'status' })
+  expect(result.text).toMatch('/aikya-feature')
+  expect(result.text).toMatch('Invalid execution index')
+  expect(result.text).not.toMatch('Completed')
+})
+
+test('automatic snapshots cannot roll back a revision after an unreadable record', async ($, on) => {
+  const { env, files } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-analyze', args: '' })
+  const bridge = JSON.parse(env.AIKYA_FLOW_CONTEXT)
+  const indexPath = '/cache/' + identity + '/flow-' + bridge.invocation_id + '.json'
+  const runPath = '/cache/' + identity + '/r1.json'
+  files[indexPath] = { schema: 1, identity, session_id: 's', invocation_id: bridge.invocation_id, command: 'aikya-analyze', runs: [{ identity, run_id: 'r1', mode: 'preview', focus: 'architecture' }] }
+  const raw = rawSnapshot()
+  Object.assign(raw, { command: 'aikya-analyze', flow_invocation: bridge.invocation_id, revision: 5 })
+  files[runPath] = raw
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('Plan: Waiting')
+  delete files[runPath]
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('Execution unavailable')
+  files[runPath] = { ...raw, revision: 4 }
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).not.toMatch('Plan: Waiting')
+})
+
+test('a prompt and its command share a context and disconnect releases it', async ($, on) => {
+  const { env } = engine(on)
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.prompt.submit({ text: '/aikya-analyze --focus architecture' })
+  const context = env.AIKYA_FLOW_CONTEXT
+  await $.command.run({ command: 'aikya-analyze', args: '--focus architecture' })
+  expect(env.AIKYA_FLOW_CONTEXT).toBe(context)
+  await $.command.run({ command: 'aikya-flow', args: 'disconnect' })
+  expect(env.AIKYA_FLOW_CONTEXT).toBeUndefined()
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('Bridge disconnected')
+})
+
+for (const environment of [
+  { AIKYA_EXECUTION_CACHE: undefined, HOME: '/home/user', CLAUDE_CONFIG_DIR: undefined, USERPROFILE: undefined },
+  { AIKYA_EXECUTION_CACHE: undefined, HOME: undefined, CLAUDE_CONFIG_DIR: undefined, USERPROFILE: 'C:/Users/Test User' },
+  { AIKYA_EXECUTION_CACHE: undefined, HOME: '/home/user', CLAUDE_CONFIG_DIR: '/custom/config', USERPROFILE: undefined },
+]) {
+  test('automatic bridge propagates a private cache using available home/config paths ' + JSON.stringify(environment), async ($, on) => {
+    const { env } = engine(on, { env: environment })
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    await $.command.run({ command: 'aikya-analyze', args: '' })
+    const context = JSON.parse(env.AIKYA_FLOW_CONTEXT)
+    expect(context.cache_root).toBe(env.AIKYA_EXECUTION_CACHE)
+    expect(context.cache_root).toMatch('/aikya-execution')
+    await $.session.end({ reason: 'exit', sessionId: 's' })
+    expect(env.AIKYA_FLOW_CONTEXT).toBeUndefined()
+    expect(env.AIKYA_EXECUTION_CACHE).toBeUndefined()
+  })
+}

@@ -2,6 +2,7 @@ import { createFlow, normalizeCommand, beginRun, observeSkill, endTurn, phaseRow
 import { acceptSnapshot, executionIdentity } from '../lib/snapshot.js';
 import { phaseView } from '../lib/view.js';
 import { FRAME_MS, motionFrame, transitionEmphasis } from '../lib/motion.js';
+import { validateIndex, selectExecution, executionLabel } from '../lib/bridge.js';
 
 const PANE = 'aikya-flow';
 function stop(state) { if (state.timer) state.timer.cancel(); state.timer = null; state.timerMs = null; }
@@ -14,29 +15,92 @@ async function readJson($, path) {
   if (typeof text !== 'string' || text.length > 2000000) throw new Error('Invalid execution file');
   return JSON.parse(text);
 }
+async function initialize($, state) {
+  if (state.origin) return;
+  try {
+    const info = await $.fs.stat(await $.session.cwd(), { resolve: true });
+    const session = await $.session.id();
+    const configured = await $.env.get('AIKYA_EXECUTION_CACHE');
+    const config = await $.env.get('CLAUDE_CONFIG_DIR');
+    const home = await $.env.get('HOME') || await $.env.get('USERPROFILE');
+    if (!info.realPath || !session || session === 'local' || (!configured && !config && !home)) throw new Error('Bridge disconnected');
+    state.origin = { root: info.realPath, session, identity: await executionIdentity(info.realPath, session) };
+    if (state.auto) state.cacheRoot = configured || (config || home + '/.claude') + '/aikya-execution';
+    if (!state.ownsCache) state.originalCache = configured;
+    if (!configured && state.auto) { await $.env.set('AIKYA_EXECUTION_CACHE', state.cacheRoot); state.ownsCache = state.cacheRoot; }
+  } catch { state.diagnostic = 'Bridge disconnected'; }
+}
+async function startInvocation($, state, command) {
+  await initialize($, state);
+  beginRun(state.flow, command, await $.clock.now());
+  state.motionBlocked = false; state.emphasis = null; state.runs = []; state.selected = null; state.accepted = new Map();
+  if (state.auto && state.origin && state.cacheRoot) {
+    const token = crypto.randomUUID().replace(/-/g, '');
+    state.bridge = { schema: 1, identity: state.origin.identity, origin_root: state.origin.root, session_id: state.origin.session,
+      invocation_id: token, command, cache_root: state.cacheRoot };
+    await $.env.set('AIKYA_FLOW_CONTEXT', JSON.stringify(state.bridge));
+    state.diagnostic = 'Waiting for execution';
+  }
+  $.ui.invalidate('ui.render');
+  sync($, state);
+}
+async function readBridge($, state, flow) {
+  const bridge = state.bridge;
+  const acceptedRuns = state.accepted;
+  if (!bridge) return { snapshot: null, runs: [], selected: null, diagnostic: 'Waiting for command' };
+  let raw;
+  try { raw = await readJson($, state.cacheRoot + '/' + bridge.identity + '/flow-' + bridge.invocation_id + '.json'); }
+  catch (error) { return { snapshot: null, runs: [], selected: null, diagnostic: error instanceof SyntaxError ? 'Invalid execution index' : 'Waiting for execution' }; }
+  const entries = validateIndex(raw, bridge);
+  if (!entries) return { snapshot: null, runs: [], selected: null, diagnostic: raw && typeof raw === 'object' && raw.session_id && raw.session_id !== bridge.session_id ? 'Session mismatch' : 'Invalid execution index' };
+  const runs = [];
+  for (const entry of entries) {
+    let accepted;
+    try {
+      const record = await readJson($, state.cacheRoot + '/' + entry.identity + '/' + entry.run_id + '.json');
+      const previous = acceptedRuns.get(entry.identity + ':' + entry.run_id);
+      accepted = acceptSnapshot(record, { identity: entry.identity, runId: entry.run_id, command: flow.command,
+        invocationId: bridge.invocation_id, previous });
+    } catch { /* Report an unavailable execution without substituting another run's evidence. */ }
+    if (!accepted) return { snapshot: null, runs: [], selected: null, diagnostic: 'Execution unavailable or mismatched' };
+    acceptedRuns.set(entry.identity + ':' + entry.run_id, accepted);
+    runs.push({ ...accepted, ...entry });
+  }
+  const selected = selectExecution(runs);
+  return { snapshot: selected, selected, runs, diagnostic: selected ? 'Connected' : 'Waiting for execution' };
+}
 async function refresh($, state) {
   if (!state.cacheRoot || state.busy) return;
   state.busy = true;
   const flow = state.flow, epoch = flow.epoch, sourceEpoch = state.sourceEpoch, cacheRoot = state.cacheRoot;
   const currentRead = () => flow === state.flow && epoch === flow.epoch && sourceEpoch === state.sourceEpoch;
   try {
-    let context = state.context;
-    if (!context) {
-      const cwd = await $.session.cwd();
-      const info = await $.fs.stat(cwd, { resolve: true });
-      if (typeof info.realPath !== 'string') throw new Error('Project path unavailable');
-      context = { identity: await executionIdentity(info.realPath, await $.session.id()) };
+    let snapshot;
+    if (state.auto) {
+      const result = await readBridge($, state, flow);
       if (!currentRead()) return;
-      state.context = context;
+      state.runs = result.runs; state.selected = result.selected; state.diagnostic = result.diagnostic;
+      snapshot = result.snapshot;
+    } else {
+      let context = state.context;
+      if (!context) {
+        const cwd = await $.session.cwd();
+        const info = await $.fs.stat(cwd, { resolve: true });
+        if (typeof info.realPath !== 'string') throw new Error('Project path unavailable');
+        context = { identity: await executionIdentity(info.realPath, await $.session.id()) };
+        if (!currentRead()) return;
+        state.context = context;
+      }
+      const folder = cacheRoot + '/' + context.identity;
+      const active = await readJson($, folder + '/active.json');
+      if (typeof active?.run_id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(active.run_id)) throw new Error('Invalid execution id');
+      const raw = await readJson($, folder + '/' + active.run_id + '.json');
+      const current = await readJson($, folder + '/active.json');
+      if (!currentRead()) return;
+      snapshot = current?.run_id === active.run_id ? acceptSnapshot(raw, { ...context, runId: active.run_id, command: flow.command,
+        minStartedAt: flow.startedAt, blockedRunId: flow.blockedRunId, previous: flow.snapshot }) : null;
+      state.diagnostic = snapshot ? 'Connected' : 'Execution unavailable or mismatched';
     }
-    const folder = cacheRoot + '/' + context.identity;
-    const active = await readJson($, folder + '/active.json');
-    if (typeof active?.run_id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(active.run_id)) throw new Error('Invalid execution id');
-    const raw = await readJson($, folder + '/' + active.run_id + '.json');
-    const current = await readJson($, folder + '/active.json');
-    if (!currentRead()) return;
-    const snapshot = current?.run_id === active.run_id ? acceptSnapshot(raw, { ...context, runId: active.run_id, command: flow.command,
-      minStartedAt: flow.startedAt, blockedRunId: flow.blockedRunId, previous: flow.snapshot }) : null;
     const now = await $.clock.now();
     if (!currentRead()) return;
     const previous = flow.snapshot;
@@ -46,7 +110,7 @@ async function refresh($, state) {
     flow.snapshot = snapshot;
     if (snapshot && !flow.command) flow.command = snapshot.command;
   } catch {
-    if (currentRead()) { flow.snapshot = null; state.emphasis = null; }
+    if (currentRead()) { flow.snapshot = null; state.emphasis = null; state.diagnostic = 'Execution unavailable or mismatched'; }
   } finally {
     state.busy = false;
     sync($, state);
@@ -77,17 +141,21 @@ async function open($, state) {
   state.hidden = false;
   sync($, state);
 }
-function status(flow) {
+function status(flow, state) {
   const rows = phaseRows(flow);
   return ['AIKYA FLOW', ...(flow.command ? ['Command: /' + flow.command] : []),
     'Native activity: ' + flow.status + (flow.activity ? ' · ' + flow.activity : ''),
     'Source: ' + (flow.snapshot ? 'Aikya execution snapshot' : 'Native activity; phase evidence unavailable'),
+    'Bridge: ' + state.diagnostic,
+    ...state.runs.map((run, index) => 'Execution ' + (index + 1) + ': ' + executionLabel(run) + ' · ' + run.status + ' · ' + run.runId),
     ...rows.map(row => `${SYMBOLS[row.status]} ${row.label}: ${LABELS[row.status]}${row.reason ? ' — ' + row.reason : ''}`)].join('\n');
 }
 export function register(on) {
   const state = { flow: createFlow(), visible: false, hidden: false, timer: null, cacheRoot: null, context: null, busy: false, sourceEpoch: 0, frame: 0, still: false, emphasis: null, motionBlocked: false, timerMs: null, pollElapsed: 0 };
+  Object.assign(state, { auto: true, origin: null, bridge: null, runs: [], accepted: new Map(), selected: null, diagnostic: 'Waiting for command' });
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'aikya-flow', description: 'Show command activity and evidence-backed workflow states', argumentHint: '[show|hide|status|still|motion|connect <cache-root>|disconnect]', immediate: true });
+    await initialize($, state);
+    await $.command.register({ name: 'aikya-flow', description: 'Show command activity and evidence-backed workflow states', argumentHint: '[show|hide|status|still|motion|connect <cache-root|auto>|disconnect]', immediate: true });
     if (e.isInteractive && e.surface) await open($, state);
     return next(e);
   });
@@ -95,13 +163,21 @@ export function register(on) {
     const args = e.args.trim();
     if (args === 'hide') { state.hidden = true; state.visible = false; stop(state); await $.ui.close({ id: PANE }); return {}; }
     if (args === 'still' || args === 'motion') { state.still = args === 'still'; state.emphasis = null; sync($, state); $.ui.invalidate('ui.render'); return {}; }
-    if (args === 'disconnect') { state.sourceEpoch += 1; state.cacheRoot = null; state.context = null; state.flow.snapshot = null; state.emphasis = null; sync($, state); $.ui.invalidate('ui.render'); return {}; }
+    if (args === 'disconnect') { state.sourceEpoch += 1; state.auto = false; state.bridge = null; state.runs = []; state.selected = null; state.diagnostic = 'Bridge disconnected'; state.cacheRoot = null; state.context = null; state.flow.snapshot = null; state.emphasis = null; await $.env.set('AIKYA_FLOW_CONTEXT', undefined); sync($, state); $.ui.invalidate('ui.render'); return {}; }
+    if (args === 'connect auto') {
+      state.auto = true; state.origin = null; state.sourceEpoch += 1;
+      await initialize($, state);
+      if (state.flow.command) await startInvocation($, state, state.flow.command);
+      return { text: 'Automatic bridge enabled. Run an Aikya command to receive execution states.' };
+    }
     if (args.startsWith('connect ')) {
       const path = args.slice(8).trim();
       try {
         const info = await $.fs.stat(path, { resolve: true });
         if (info.kind !== 'directory' || typeof info.realPath !== 'string') return { text: 'The execution cache must be an existing local directory.' };
         state.cacheRoot = info.realPath.replace(/\/$/, '');
+        state.auto = false; state.bridge = null; state.runs = []; state.selected = null;
+        await $.env.set('AIKYA_FLOW_CONTEXT', undefined);
         state.sourceEpoch += 1;
         state.context = null;
         state.pollElapsed = 0; state.emphasis = null;
@@ -110,18 +186,22 @@ export function register(on) {
         return { text: state.flow.snapshot ? 'Connected to the current Aikya execution snapshot.' : 'Cache connected. No matching execution snapshot is available yet.' };
       } catch { return { text: 'Unable to read that execution cache directory.' }; }
     }
-    if (args === 'status') { await refresh($, state); return { text: status(state.flow) }; }
-    if (args && args !== 'show') return { text: 'Usage: /aikya-flow [show|hide|status|still|motion|connect <cache-root>|disconnect]' };
+    if (args === 'status') { await refresh($, state); return { text: status(state.flow, state) }; }
+    if (args && args !== 'show') return { text: 'Usage: /aikya-flow [show|hide|status|still|motion|connect <cache-root|auto>|disconnect]' };
     await refresh($, state);
     await open($, state);
     return {};
   });
+  on('prompt.submit', async ($, e, next) => {
+    const command = e.text.trim().startsWith('/') ? normalizeCommand(e.text.trim()) : null;
+    if (command) { await startInvocation($, state, command); state.preparedCommand = command; }
+    return next(e);
+  });
   on('command.run', async ($, e, next) => {
     const command = normalizeCommand(e.command);
     if (!command) return next(e);
-    beginRun(state.flow, command, await $.clock.now());
-    state.motionBlocked = false; state.emphasis = null;
-    $.ui.invalidate('ui.render');
+    if (state.preparedCommand !== command) await startInvocation($, state, command);
+    state.preparedCommand = null;
     const epoch = state.flow.epoch;
     const result = await next(e);
     if (epoch === state.flow.epoch) {
@@ -133,11 +213,16 @@ export function register(on) {
   });
   on('skill.prompt', async ($, e, next) => {
     const command = normalizeCommand(e.skill);
-    if (command) { observeSkill(state.flow, command, await $.clock.now()); $.ui.invalidate('ui.render'); }
+    if (command) {
+      if (!state.flow.command) await startInvocation($, state, command);
+      else observeSkill(state.flow, command, await $.clock.now());
+      $.ui.invalidate('ui.render');
+    }
     return next(e);
   });
   on('turn.start', async ($, e, next) => {
-    if (!state.flow.pendingTurn) beginRun(state.flow, normalizeCommand(e.text.startsWith('/') ? e.text : ''), await $.clock.now());
+    state.preparedCommand = null;
+    if (!state.flow.pendingTurn && !state.bridge) beginRun(state.flow, normalizeCommand(e.text.startsWith('/') ? e.text : ''), await $.clock.now());
     state.motionBlocked = false; state.emphasis = null;
     state.flow.pendingTurn = false;
     state.flow.status = 'Running';
@@ -175,6 +260,10 @@ export function register(on) {
   on('ui.close', { id: PANE }, async ($, e, next) => { state.visible = false; state.hidden = true; stop(state); return next(e); });
   on('session.end', async ($, e, next) => {
     stop(state); state.visible = false; state.hidden = false; state.sourceEpoch += 1; state.flow = createFlow(); state.context = null; state.emphasis = null; state.motionBlocked = false; state.pollElapsed = 0;
+    state.bridge = null; state.origin = null; state.runs = []; state.selected = null; state.preparedCommand = null;
+    await $.env.set('AIKYA_FLOW_CONTEXT', undefined);
+    if (state.ownsCache && await $.env.get('AIKYA_EXECUTION_CACHE') === state.ownsCache) await $.env.set('AIKYA_EXECUTION_CACHE', state.originalCache);
+    state.ownsCache = null;
     return next(e);
   });
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
@@ -192,7 +281,8 @@ export function register(on) {
     if (state.flow.command) content.push(Text({ wrap: 'truncate-end', children: ['/' + state.flow.command] }));
     if (state.flow.status !== 'Turn ended') content.push(Text({ color: 'cyan', wrap: 'truncate-end',
       children: [(nativeActive(state) ? spinner.symbol + ' ' : '') + state.flow.status + (state.flow.activity ? ' · ' + state.flow.activity : '')] }));
-    content.push(Text({ dimColor: true, wrap: 'truncate-end', children: [state.flow.snapshot ? 'Source: Aikya execution snapshot' : 'Native activity · No phase evidence'] }));
+    content.push(Text({ dimColor: true, wrap: 'truncate-end', children: [state.flow.snapshot ? 'Source: Aikya execution snapshot' : state.diagnostic] }));
+    if (state.selected) content.push(Text({ wrap: 'truncate-end', children: [executionLabel(state.selected) + ' · ' + (state.runs.indexOf(state.selected) + 1) + '/' + state.runs.length] }));
     const reason = rows.find(row => row.reason);
     if (reason) content.push(Text({ dimColor: true, wrap: 'truncate-end', children: [reason.label + ': ' + reason.reason] }));
     const diagram = [];
