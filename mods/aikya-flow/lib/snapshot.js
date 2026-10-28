@@ -18,7 +18,7 @@ export function acceptSnapshot(raw, context) {
   if ((context.runId && raw.run_id !== context.runId) || raw.run_id === context.blockedRunId) return null;
   if (!integer(raw.revision) || !integer(raw.candidate_generation) || !STATES.has(raw.status)) return null;
   if (!Number.isFinite(raw.started_at) || !Number.isFinite(raw.updated_at) || raw.updated_at < raw.started_at) return null;
-  if (context.minStartedAt && raw.started_at * 1000 < context.minStartedAt) return null;
+  if (context.invocationId ? raw.flow_invocation !== context.invocationId : context.minStartedAt && raw.started_at * 1000 < context.minStartedAt) return null;
   const command = normalizeCommand(raw.command);
   if (!command || (context.command && command !== context.command)) return null;
   const previous = context.previous;
