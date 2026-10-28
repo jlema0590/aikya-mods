@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: jlema0590/aikya-harness
-          ref: f5c273c5bf27fc413832f38537f2b7ede3c0aa6b
+          ref: 14997736a4933e80537cac5aec35140ac0434998
           path: producer
           persist-credentials: false
       - uses: actions/setup-python@v6

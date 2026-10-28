@@ -12,6 +12,11 @@ with tempfile.TemporaryDirectory(prefix='aikya-flow-contract-') as temporary:
  from unittest.mock import patch
  with patch.dict(os.environ, env):
   observe({'root':str(root),'session_id':'contract-session','cache_root':str(cache)}, {'hook_event_name':'UserPromptSubmit','prompt':'/aikya-analyze'})
+ shared=root/'.claude/worktrees/shared';shared.mkdir(parents=True);(shared/'pom.xml').write_text('<project/>')
+ workers=[subprocess.Popen([sys.executable,'-B','-m','aikya','analyze','--target',str(shared),'--focus',focus,'--methodology','odd','--dry-run'],env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE) for focus in ('architecture','security')]
+ for worker in workers:
+  stdout,stderr=worker.communicate(timeout=60)
+  assert worker.returncode==0,stderr
  for preview in (True, False):
   for focus in ('architecture','security'):
    target=root/'.claude/worktrees'/focus;target.mkdir(parents=True,exist_ok=True)
@@ -26,7 +31,7 @@ const context=JSON.parse(process.argv[1]);
 const identity=await executionIdentity(context.origin_root,context.session_id);
 const index=JSON.parse(readFileSync(context.cache_root+'/'+identity+'/flow-'+context.invocation_id+'.json','utf8'));
 const entries=validateIndex(index,{...context,identity});
-if(entries?.length!==5)throw new Error('Expected parent dispatch plus separate preview and approved executions');
+if(entries?.length!==7)throw new Error('Expected parent dispatch, parallel shared-worktree previews and separate preview/approved executions');
 const runs=entries.map(row=>{
  const raw=JSON.parse(readFileSync(context.cache_root+'/'+row.identity+'/'+row.run_id+'.json','utf8'));
  const snapshot=acceptSnapshot(raw,{identity:row.identity,runId:row.run_id,command:context.command,invocationId:context.invocation_id,minStartedAt:Date.now()+10000});

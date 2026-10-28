@@ -1,6 +1,6 @@
 # Flow execution bridge validation
 
-Prepared versions: Mods bundle 0.0.15, Flow 0.1.3 and Harness 7.1.1. Producer revision: `f5c273c5bf27fc413832f38537f2b7ede3c0aa6b` in jlema0590/aikya-harness.
+Prepared versions: Mods bundle 0.0.15, Flow 0.1.3 and Harness 7.1.1. Producer revision: `14997736a4933e80537cac5aec35140ac0434998` in jlema0590/aikya-harness.
 
 ## Observed checks
 
@@ -8,7 +8,7 @@ Prepared versions: Mods bundle 0.0.15, Flow 0.1.3 and Harness 7.1.1. Producer re
 - Installer and release tooling: 70 tests pass, including portable PowerShell 7.6.9. Earlier no-PowerShell runs skipped those cases; the final run executes them.
 - Real installs from source and the built archive pass, including repeated installation, user/project/local scopes, spaces and Unicode. Generated release installers pass over a local HTTP server with real Bash and PowerShell installation/update/recovery checks.
 - All 13 release assets build for v0.0.15; version/changelog checks pass.
-- The real Harness producer/Flow consumer contract passes with five separate references: initial parent dispatch, architecture/security previews and architecture/security approved runs. It checks completion/applicability, earlier hook timing and rejection of a foreign invocation. The untouched parent dispatch cannot hide completed child results.
+- The real Harness producer/Flow consumer contract passes with seven separate references: initial parent dispatch, two simultaneous previews in a shared worktree, architecture/security previews and architecture/security approved runs. It checks completion/applicability, earlier hook timing and rejection of a foreign invocation. The untouched parent dispatch cannot hide completed child results.
 - An isolated real Claude Code 2.1.308 terminal exports its context to an actual Python child in a worktree, receives the resulting records and paints Completed and Not applicable. The fixture uses an immediate local command and makes no live model request. This does not claim an authenticated real-user conversation was replayed.
 
 ## Regressions and limits

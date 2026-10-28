@@ -339,7 +339,7 @@ With a matching Harness 7.1.1+ source checkout, run the real producer/consumer c
 python3 tests/integration_flow_bridge.py /path/to/aikya-harness
 ```
 
-This checks an observed parent dispatch plus architecture/security previews and approved runs in separate worktrees, invocation isolation, early hook starts and selection of actual child results.
+This checks an observed parent dispatch, simultaneous previews in a shared worktree, and architecture/security previews and approved runs in separate worktrees, invocation isolation, early hook starts and selection of actual child results.
 
 ```sh
 python3 -m unittest discover -s tests -v
