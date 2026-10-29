@@ -383,3 +383,67 @@ for (const environment of [
     expect(env.AIKYA_EXECUTION_CACHE).toBeUndefined()
   })
 }
+
+
+for (const command of ['aikya-mobile-feature', 'aikya-analyze']) {
+  test('an unbridged ' + command + ' runtime explains the required Harness update', async ($, on) => {
+    const { files } = engine(on)
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    await $.command.run({ command, args: '' })
+    const raw = rawSnapshot(); raw.command = command
+    files['/cache/' + identity + '/active.json'] = { run_id: 'r1' }
+    files['/cache/' + identity + '/r1.json'] = raw
+    const status = await $.command.run({ command: 'aikya-flow', args: 'status' })
+    expect(status.text).toMatch('Harness bridge unavailable')
+    expect(status.text).toMatch('7.2.1')
+    expect(status.text).toMatch('No evidence')
+    expect(status.text).not.toMatch('Completed')
+  })
+}
+
+test('a previous unbridged command does not misdiagnose the current runtime', async ($, on) => {
+  const { files } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'aikya-mobile-feature', args: '' })
+  files['/cache/' + identity + '/active.json'] = { run_id: 'r1' }
+  files['/cache/' + identity + '/r1.json'] = rawSnapshot()
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('Waiting for execution')
+})
+
+
+test('mobile skill evidence connects while Bash is waiting for permission', async ($, on) => {
+  const { files, env } = engine(on)
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('tool.check', () => ({ decision: 'ask', message: 'Fixture requires approval' }))
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await $.prompt.submit({ text: '/aikya-mobile-feature' })
+  await $.command.run({ command: 'aikya-mobile-feature', args: '' })
+  const context = JSON.parse(env.AIKYA_FLOW_CONTEXT)
+  const raw = rawSnapshot(); raw.command = 'aikya-mobile-feature'; raw.flow_invocation = context.invocation_id
+  raw.phases.explore.status = 'running'
+  files['/cache/' + identity + '/flow-' + context.invocation_id + '.json'] = {
+    schema: 1, identity, session_id: 's', invocation_id: context.invocation_id,
+    command: raw.command, runs: [{ identity, run_id: 'r1', mode: 'observed', focus: 'general' }],
+  }
+  files['/cache/' + identity + '/r1.json'] = raw
+  await $.turn.start({ turnId: 'mobile', text: 'mobile feature' })
+  const permission = await $.tool.check({ tool: 'Bash', input: { command: 'fixture' } })
+  expect(permission.decision).toBe('ask')
+  const status = await $.command.run({ command: 'aikya-flow', args: 'status' })
+  expect(status.text).toMatch('Bridge: Connected')
+  expect(status.text).toMatch('Waiting for permission: Bash')
+  expect(status.text).toMatch('Explore: Running')
+  expect(status.text).not.toMatch('Completed')
+})
+
+
+test('a stale unbridged mobile run does not diagnose the current invocation', async ($, on) => {
+  const { files, clock } = engine(on)
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+  await clock.advance(10000)
+  await $.command.run({ command: 'aikya-mobile-feature', args: '' })
+  const raw = rawSnapshot(); raw.command = 'aikya-mobile-feature'
+  files['/cache/' + identity + '/active.json'] = { run_id: 'r1' }
+  files['/cache/' + identity + '/r1.json'] = raw
+  expect((await $.command.run({ command: 'aikya-flow', args: 'status' })).text).toMatch('Waiting for execution')
+})
