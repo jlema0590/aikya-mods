@@ -2,17 +2,17 @@
 
 Independent Claude Code mods, with an individual installer for each released mod and a shared installation menu. All mod interfaces and installer messages are in English.
 
-Bundle version: **0.0.15**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
+Bundle version: **0.0.16**. [VERSION](VERSION) is the release source of truth; [CHANGELOG.md](CHANGELOG.md) records the changes for each bundle version. Mod versions are independent.
 
 | Mod | Version | Purpose |
 | --- | --- | --- |
 | [Aikya BoxBot](mods/aikya-boxbot/) | 0.3.2 | Decorative boxes on a moving conveyor belt at the bottom of the mod pane |
-| [Aikya Flow](mods/aikya-flow/) | 0.1.3 | Evidence-backed phase diagrams with state colors and animation |
+| [Aikya Flow](mods/aikya-flow/) | 0.1.4 | Evidence-backed phase diagrams with state colors and animation |
 | [Aikya Usage](mods/aikya-usage/) | 0.1.1 | Context, observed tokens and separate 5h/7d usage bars on one bottom line |
 
 After restart, Flow opens a native pane automatically without requesting keyboard focus. BoxBot stays at the bottom of the docked pane, with Flow above it when both are enabled. Usage appears on one compact line below the terminal prompt. Use a sufficiently wide fullscreen terminal for Claude Code on the left and the mods on the right; placement is controlled by Claude Code.
 
-Flow 0.1.3 connects automatically when Harness 7.1.1 or newer runs in the same Claude process. It follows snapshots from the current invocation, including worktrees and background CLI processes. With older runtimes or unavailable evidence, applicable phases remain **No evidence**. Usage counts observed requests since the mod loaded, not earlier transcript history. See each mod’s documentation for its data sources and limits.
+Flow 0.1.4 connects automatically when Harness 7.2.1 or newer runs in the same Claude process. It follows snapshots from the current invocation, including worktrees and background CLI processes. With older runtimes or unavailable evidence, applicable phases remain **No evidence**. Usage counts observed requests since the mod loaded, not earlier transcript history. See each mod’s documentation for its data sources and limits.
 
 ## Terminal layout
 
@@ -243,7 +243,7 @@ bash /path/to/aikya-mods/install.sh aikya-boxbot --scope project
 
 ## Update installed mods
 
-These changes must reach the branch used by your marketplace before a normal update can download them. The prepared versions are Flow 0.1.3, BoxBot 0.3.2 and Usage 0.1.1 (bundle 0.0.15).
+These changes must reach the branch used by your marketplace before a normal update can download them. The prepared versions are Flow 0.1.4, BoxBot 0.3.2 and Usage 0.1.1 (bundle 0.0.16).
 
 Inside Claude Code, run `/plugin`, open **Marketplaces**, choose **aikya-mods**, then **Update marketplace**. This updates the listing and the installed plugins from this repository. Alternatively open each mod on the **Installed** tab and select **Update now**. Apply the offered plugin reload, or exit and start Claude Code again.
 
@@ -285,9 +285,19 @@ The default sequence is **Explore → Plan → Implement → Validate → Securi
 
 Still mode freezes only visual effects; phase readings keep updating. Flow adds no buttons, keeps BoxBot below the diagram, omits the placeholder task label, and hides the normal turn-ended activity line.
 
-With Flow 0.1.3 and Harness 7.1.1+, restart Claude Code after updating both, then run `/aikya-analyze` normally. No manual cache path is needed. Each execution has its own focus/mode label; `/aikya-flow status` lists the executions. The pane shows active work first, then an unsuccessful result if present, otherwise the last completed execution. It does not combine their phase evidence.
+With Flow 0.1.4 and Harness 7.2.1+, restart Claude Code after updating both, then run `/aikya-mobile-feature` or `/aikya-analyze` normally. No manual cache path is needed. Each execution has its own focus/mode label; `/aikya-flow status` lists the executions. The pane shows active work first, then an unsuccessful result if present, otherwise the last completed execution. It does not combine their phase evidence.
 
-Use `/aikya-flow status` to inspect `Waiting for execution`, `Session mismatch`, or unreadable/mismatched execution diagnostics. `/aikya-flow connect auto` re-enables automatic tracking; run a new Aikya command afterward. Independently launched shells need an explicit compatible session/context; Flow does not discover arbitrary external processes.
+Harness **7.2.0 does not contain the automatic bridge**, even with the newest Flow mod. Once Harness 7.2.1 is published, update the effective runtime (global or project):
+
+```sh
+aikya-manage update --version 7.2.1 --scope global --mods none
+# Use this instead for an existing project registration:
+aikya-manage update --version 7.2.1 --scope project --target /absolute/path/to/project --mods none
+```
+
+A project runtime can override the global runtime. Update Flow in its installed scope and restart Claude Code. `/aikya-flow status` should then report `Bridge: Connected` after a command is observed. A pending Bash permission remains a permission wait; it does not complete any phase.
+
+Use `/aikya-flow status` to inspect `Harness bridge unavailable` (a current uncorrelated runtime; update Harness), `Waiting for execution`, `Session mismatch`, or unreadable/mismatched execution diagnostics. `/aikya-flow connect auto` re-enables automatic tracking; run a new Aikya command afterward. Independently launched shells need an explicit compatible session/context; Flow does not discover arbitrary external processes.
 
 For older compatible snapshots, connect their cache root manually:
 
@@ -333,7 +343,7 @@ Follow [Update installed mods](#update-installed-mods) to get the usage bars whe
 
 ## Verify
 
-With a matching Harness 7.1.1+ source checkout, run the real producer/consumer contract:
+With a matching Harness 7.2.1+ source checkout, run the real producer/consumer contract:
 
 ```sh
 python3 tests/integration_flow_bridge.py /path/to/aikya-harness
@@ -354,7 +364,7 @@ python3 tests/integration_package.py
 python3 tests/integration_platforms.py
 python3 tests/integration_online_release.py
 python3 scripts/build_release.py --check
-python3 scripts/build_release.py --version v0.0.15 --output dist
+python3 scripts/build_release.py --version v0.0.16 --output dist
 ```
 
 Installer tests execute the real Bash and PowerShell scripts against isolated HTTP/Claude boundaries. PowerShell tests run when `pwsh` is available; `AIKYA_TEST_PWSH` can select a portable runtime. Native mod tests use Claude Code's test kit. `integration_install.py` performs real installs in a disposable `CLAUDE_CONFIG_DIR`, verifies that user-scoped plugins stay enabled and available from other project directories, and leaves your normal Claude configuration untouched. `integration_package.py` repeats installation from the built ZIP. CI runs these checks on Linux, macOS and Windows using the Claude version in [.claude-version](.claude-version).

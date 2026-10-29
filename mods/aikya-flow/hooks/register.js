@@ -44,13 +44,28 @@ async function startInvocation($, state, command) {
   $.ui.invalidate('ui.render');
   sync($, state);
 }
+async function missingBridgeDiagnostic($, state, flow) {
+  // Diagnose a current uncorrelated producer without displaying its phase evidence.
+  try {
+    const folder = state.cacheRoot + '/' + state.bridge.identity;
+    const active = await readJson($, folder + '/active.json');
+    if (typeof active?.run_id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(active.run_id)) return 'Waiting for execution';
+    const raw = await readJson($, folder + '/' + active.run_id + '.json');
+    const current = await readJson($, folder + '/active.json');
+    if (current?.run_id === active.run_id && !raw.flow_invocation &&
+        acceptSnapshot(raw, { identity: state.bridge.identity, runId: active.run_id, command: flow.command, minStartedAt: flow.startedAt })) {
+      return 'Harness bridge unavailable · update Harness to 7.2.1+ and restart Claude Code';
+    }
+  } catch { /* A missing producer is distinct from an observed incompatible producer. */ }
+  return 'Waiting for execution';
+}
 async function readBridge($, state, flow) {
   const bridge = state.bridge;
   const acceptedRuns = state.accepted;
   if (!bridge) return { snapshot: null, runs: [], selected: null, diagnostic: 'Waiting for command' };
   let raw;
   try { raw = await readJson($, state.cacheRoot + '/' + bridge.identity + '/flow-' + bridge.invocation_id + '.json'); }
-  catch (error) { return { snapshot: null, runs: [], selected: null, diagnostic: error instanceof SyntaxError ? 'Invalid execution index' : 'Waiting for execution' }; }
+  catch (error) { return { snapshot: null, runs: [], selected: null, diagnostic: error instanceof SyntaxError ? 'Invalid execution index' : await missingBridgeDiagnostic($, state, flow) }; }
   const entries = validateIndex(raw, bridge);
   if (!entries) return { snapshot: null, runs: [], selected: null, diagnostic: raw && typeof raw === 'object' && raw.session_id && raw.session_id !== bridge.session_id ? 'Session mismatch' : 'Invalid execution index' };
   const runs = [];

@@ -46,3 +46,36 @@ console.log(JSON.stringify({result:'PASS',runs:runs.map(run=>({focus:run.focus,m
 """
  proc=subprocess.run(['node','--input-type=module','-e',script,json.dumps(bridge)],cwd=mods,text=True,capture_output=True)
  print(proc.stdout,end='');print(proc.stderr,end='',file=sys.stderr);assert proc.returncode==0
+
+ # The mobile workflow is a skill, not the analyze CLI: run its installed classic hook.
+ from aikya.installation.registration import setup
+ registered=base/'registered';setup(harness,registered,'project',home=base/'home')
+ runtime=registered/'.aikya/runtime'
+ mobile={**bridge,'command':'aikya-mobile-feature','invocation_id':'b'*32}
+ mobile_env={**env,'PYTHONPATH':'','AIKYA_FLOW_CONTEXT':json.dumps(mobile)}
+ payload={'cwd':str(root),'session_id':'contract-session','hook_event_name':'UserPromptSubmit',
+          'prompt_id':'mobile-fixture','prompt':'/aikya-mobile-feature'}
+ hook=subprocess.run([sys.executable,'-B',str(runtime/'execution_observer.py'),'hook'],input=json.dumps(payload),
+                     cwd=base,env=mobile_env,capture_output=True,text=True)
+ assert hook.returncode==0,hook.stderr
+ phase=subprocess.run([sys.executable,'-B',str(runtime/'execution_observer.py'),'phase','--root',str(root),
+                       '--phase','explore','--status','running'],cwd=base,env=mobile_env,capture_output=True,text=True)
+ assert phase.returncode==0,phase.stderr
+ mobile_script="""
+import { readFileSync } from 'node:fs';
+import { executionIdentity, acceptSnapshot } from './mods/aikya-flow/lib/snapshot.js';
+import { validateIndex } from './mods/aikya-flow/lib/bridge.js';
+const context=JSON.parse(process.argv[1]);
+const identity=await executionIdentity(context.origin_root,context.session_id);
+const index=JSON.parse(readFileSync(context.cache_root+'/'+identity+'/flow-'+context.invocation_id+'.json','utf8'));
+const entries=validateIndex(index,{...context,identity});
+if(entries?.length!==1)throw new Error('Installed mobile skill did not publish one correlated execution');
+const row=entries[0];
+const raw=JSON.parse(readFileSync(context.cache_root+'/'+row.identity+'/'+row.run_id+'.json','utf8'));
+const snapshot=acceptSnapshot(raw,{identity:row.identity,runId:row.run_id,command:context.command,invocationId:context.invocation_id});
+if(!snapshot||snapshot.phases.find(p=>p.id==='explore').status!=='running')throw new Error('Mobile skill phase rejected');
+if(snapshot.phases.find(p=>p.id==='implement').status!=='pending')throw new Error('Mobile execution fabricated implementation evidence');
+console.log(JSON.stringify({result:'PASS',command:context.command,registeredRuntime:true,sourceImports:false,explore:'running',implement:'pending'}));
+"""
+ proc=subprocess.run(['node','--input-type=module','-e',mobile_script,json.dumps(mobile)],cwd=mods,text=True,capture_output=True)
+ print(proc.stdout,end='');print(proc.stderr,end='',file=sys.stderr);assert proc.returncode==0

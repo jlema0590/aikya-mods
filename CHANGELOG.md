@@ -5,6 +5,21 @@ Bundle versions follow Semantic Versioning and are independent of each mod's ver
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-10-29
+
+### Fixed
+
+- Explain a current uncorrelated Harness runtime instead of silently waiting forever for the missing Flow bridge; never substitute its phase evidence.
+- Correct the automatic bridge requirement to the forthcoming Harness 7.2.1: the bridge branch was not included in the published 7.2.0 runtime.
+
+### Added
+
+- Mobile skill and Bash permission-wait regression coverage, registered runtime producer/consumer checks, and update guidance for global/project scope precedence.
+
+### Included mods
+
+- Aikya BoxBot 0.3.2, Aikya Flow 0.1.4 and Aikya Usage 0.1.1.
+
 ## [0.0.15] - 2026-10-28
 
 ### Fixed
